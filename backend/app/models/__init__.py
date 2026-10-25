@@ -1,0 +1,46 @@
+from app.models.auth import PasswordResetToken, User
+from app.models.learning import (
+    LearnerModuleNote,
+    LearnerModuleReflection,
+    LearnerModuleSubmission,
+    LearnerQuestionAnswer,
+    LearningModule,
+    ModuleQuestion,
+)
+from app.models.programme import (
+    AssignmentSubmission,
+    AuditLog,
+    GroupFacilitator,
+    GroupMembership,
+    LearnerProgress,
+    MentorshipGroup,
+    MentorshipSession,
+    ProgrammeAssignment,
+    SessionAttendance,
+    SessionReport,
+    SubmissionFeedback,
+    SubmissionRevision,
+)
+
+__all__ = [
+    "LearnerModuleNote",
+    "LearnerModuleReflection",
+    "LearnerModuleSubmission",
+    "LearnerProgress",
+    "LearnerQuestionAnswer",
+    "LearningModule",
+    "MentorshipGroup",
+    "MentorshipSession",
+    "ModuleQuestion",
+    "PasswordResetToken",
+    "ProgrammeAssignment",
+    "AssignmentSubmission",
+    "SubmissionRevision",
+    "SubmissionFeedback",
+    "SessionAttendance",
+    "SessionReport",
+    "GroupFacilitator",
+    "GroupMembership",
+    "AuditLog",
+    "User",
+]
