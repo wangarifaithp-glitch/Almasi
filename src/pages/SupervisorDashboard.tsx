@@ -126,6 +126,17 @@ export default function SupervisorDashboard() {
         </section>
       ) : report ? (
         <>
+          <section className="dashboard-hero dashboard-hero--supervisor">
+            <div>
+              <span className="dashboard-hero__eyebrow">SUPERVISOR DASHBOARD</span>
+              <h3>See the whole programme at a glance.</h3>
+              <p>
+                Monitor learner progress, facilitator activity, attendance, and
+                curriculum readiness using authorised programme records.
+              </p>
+            </div>
+            <div className="dashboard-hero__illustration" aria-hidden="true">◒</div>
+          </section>
           <section className="workspace-staff-grid">
             {metrics.map(([key, label]) => (
               <article className="workspace-card workspace-staff-card" key={key}>
@@ -133,6 +144,41 @@ export default function SupervisorDashboard() {
                 <strong className="workspace-count">{report[key] as number}</strong>
               </article>
             ))}
+          </section>
+          <section className="dashboard-insight-grid" aria-label="Supervisor insights">
+            <article className="dashboard-insight">
+              <div className="dashboard-insight__heading">
+                <span>MODULE COMPLETION</span>
+                <strong>
+                  {report.published_modules
+                    ? Math.round((report.completed_module_records / Math.max(report.published_modules * Math.max(report.active_learners, 1), 1)) * 100)
+                    : 0}%
+                </strong>
+              </div>
+              <div className="dashboard-bar">
+                <span
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      report.published_modules
+                        ? Math.round((report.completed_module_records / Math.max(report.published_modules * Math.max(report.active_learners, 1), 1)) * 100)
+                        : 0,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <p>Completed module records across active learners.</p>
+            </article>
+            <article className="dashboard-insight">
+              <div className="dashboard-insight__heading">
+                <span>REVIEW QUEUE</span>
+                <strong>{report.awaiting_review}</strong>
+              </div>
+              <p>
+                Submitted assignments awaiting facilitator review. Use the
+                facilitator workspace to resolve feedback.
+              </p>
+            </article>
           </section>
           <section className="workspace-card">
             <div className="workspace-card__heading">

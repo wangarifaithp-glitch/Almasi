@@ -52,4 +52,4 @@ def health_check(db: Session = Depends(get_db)) -> dict[str, str] | JSONResponse
             },
         )
 
-    return {"status": "ok", "database": "ok"}
+    return {"status": "healthy", "database": "connected"}

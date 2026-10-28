@@ -100,7 +100,9 @@ class AuthenticationTests(unittest.TestCase):
     def test_health_registration_login_and_current_user_flow(self) -> None:
         health = self.client.get("/api/v1/health")
         self.assertEqual(health.status_code, 200)
-        self.assertEqual(health.json(), {"status": "ok", "database": "ok"})
+        self.assertEqual(
+            health.json(), {"status": "healthy", "database": "connected"}
+        )
 
         registration = self.register()
         self.assertEqual(registration.status_code, 201)

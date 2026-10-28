@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ApiError, apiFetch } from "../lib/api";
 
 type ModuleProgress = {
@@ -17,14 +17,34 @@ type ModuleQuestion = {
   prompt: string;
 };
 
+type ModuleQuizQuestion = {
+  id: number;
+  position: number;
+  prompt: string;
+  options: string[];
+};
+
+type QuizAttempt = {
+  id: number;
+  answers: Record<number, number>;
+  score: number;
+  total_questions: number;
+  feedback: string;
+  submitted_at: string;
+};
+
 type LearnerModule = {
   id: number;
   week_number: number;
   title: string;
+  image_url: string;
+  image_alt: string;
   content_markdown: string;
   learning_objectives: string[];
   reflection_prompts: string[];
   questions: ModuleQuestion[];
+  quiz_questions: ModuleQuizQuestion[];
+  quiz_attempts: QuizAttempt[];
   note: string;
   note_updated_at: string | null;
   reflection: string;
@@ -57,11 +77,23 @@ export default function LearnerModules() {
   const [note, setNote] = useState("");
   const [reflection, setReflection] = useState("");
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizSubmitting, setQuizSubmitting] = useState(false);
+  const [quizError, setQuizError] = useState("");
   const [noteState, setNoteState] = useState<SaveState>("idle");
   const [reflectionState, setReflectionState] = useState<SaveState>("idle");
   const [answerState, setAnswerState] = useState<SaveState>("idle");
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "error" | "done">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const completedModules = modules.filter((item) => item.is_completed).length;
+  const progressPercent = modules.length
+    ? Math.round((completedModules / modules.length) * 100)
+    : 0;
+  const quizAttempts = modules.reduce(
+    (total, item) => total + (item.id === module?.id ? module.quiz_attempts.length : 0),
+    0,
+  );
 
   useEffect(() => {
     let active = true;
@@ -104,6 +136,8 @@ export default function LearnerModules() {
         setNote(data.note);
         setReflection(data.reflection);
         setAnswers(data.answers);
+        setQuizAnswers(data.quiz_attempts[0]?.answers ?? {});
+        setQuizError("");
         setNoteState(data.note_updated_at ? "saved" : "idle");
         setReflectionState(data.reflection_updated_at ? "saved" : "idle");
         setAnswerState(Object.keys(data.answers).length > 0 ? "saved" : "idle");
@@ -195,6 +229,44 @@ export default function LearnerModules() {
     }
   }
 
+  async function submitQuiz() {
+    if (!module) return;
+    setQuizSubmitting(true);
+    setQuizError("");
+    try {
+      const response = await apiFetch(`learner/modules/${module.id}/quiz/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          answers: module.quiz_questions.map((question) => ({
+            question_id: question.id,
+            selected_option: quizAnswers[question.id],
+          })),
+        }),
+      });
+      const attempt = (await response.json()) as QuizAttempt;
+      setModule((current) =>
+        current
+          ? {
+              ...current,
+              quiz_attempts: [
+                attempt,
+                ...current.quiz_attempts.filter((item) => item.id !== attempt.id),
+              ],
+            }
+          : current,
+      );
+    } catch (requestError) {
+      setQuizError(
+        requestError instanceof ApiError && requestError.status === 422
+          ? "Please select one answer for every quiz question."
+          : requestErrorMessage(requestError),
+      );
+    } finally {
+      setQuizSubmitting(false);
+    }
+  }
+
   return (
     <>
       <section className="workspace-intro">
@@ -204,6 +276,49 @@ export default function LearnerModules() {
           Work through approved modules, keep your notes and reflections private,
           and submit your answers when you are ready.
         </p>
+      </section>
+
+      <section className="dashboard-hero dashboard-hero--learner">
+        <div>
+          <span className="dashboard-hero__eyebrow">LEARNER DASHBOARD</span>
+          <h3>Keep growing, one faithful step at a time.</h3>
+          <p>
+            Your lessons, reflections, and quiz results are saved to your private
+            learning record.
+          </p>
+        </div>
+        <div className="dashboard-progress" aria-label={`${progressPercent}% module progress`}>
+          <div
+            className="dashboard-progress__ring"
+            style={{ "--progress": `${progressPercent * 3.6}deg` } as CSSProperties}
+          >
+            <strong>{progressPercent}%</strong>
+            <span>progress</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="dashboard-stat-grid" aria-label="Learning summary">
+        <article className="dashboard-stat">
+          <span>Modules completed</span>
+          <strong>{completedModules}<small>/{modules.length || 12}</small></strong>
+          <p>Keep moving through your learning path.</p>
+        </article>
+        <article className="dashboard-stat">
+          <span>Modules remaining</span>
+          <strong>{Math.max((modules.length || 12) - completedModules, 0)}</strong>
+          <p>Published lessons ready when you are.</p>
+        </article>
+        <article className="dashboard-stat">
+          <span>Selected module attempts</span>
+          <strong>{quizAttempts}</strong>
+          <p>Your saved scores and feedback.</p>
+        </article>
+        <article className="dashboard-stat dashboard-stat--accent">
+          <span>Next step</span>
+          <strong>{modules.find((item) => !item.is_completed)?.title ?? "Celebrate"}</strong>
+          <p>{modules.find((item) => !item.is_completed) ? "Continue your learning journey." : "You have completed every published module."}</p>
+        </article>
       </section>
 
       {errorMessage && <p className="workspace-alert" role="alert">{errorMessage}</p>}
@@ -286,6 +401,20 @@ export default function LearnerModules() {
             <article className="workspace-card learner-module-content">
               <span className="workspace-kicker">WEEK {module.week_number}</span>
               <h3>{module.title}</h3>
+              <div className="learner-module-image">
+                <img
+                  src={module.image_url}
+                  alt={module.image_alt}
+                  loading="lazy"
+                  onError={(event) => {
+                    event.currentTarget.hidden = true;
+                    event.currentTarget.parentElement?.classList.add(
+                      "learner-module-image--fallback",
+                    );
+                  }}
+                />
+                <span aria-hidden="true">ALMASI learning illustration</span>
+              </div>
 
               <section className="learner-module-section">
                 <h4>Learning objectives</h4>
@@ -299,6 +428,69 @@ export default function LearnerModules() {
               <section className="learner-module-section">
                 <h4>Module content</h4>
                 <div className="learner-module-prose">{module.content_markdown}</div>
+              </section>
+
+              <section className="learner-module-section" aria-labelledby="module-quiz-title">
+                <h4 id="module-quiz-title">Module quiz</h4>
+                <p>
+                  Choose one answer for each question. Your score and feedback are
+                  saved to your learning record. You can try the quiz again.
+                </p>
+                {module.quiz_questions.map((question) => (
+                  <fieldset className="learner-question" key={question.id}>
+                    <legend>
+                      <span className="learner-question__kind">Question {question.position}</span>
+                      {question.prompt}
+                    </legend>
+                    {question.options.map((option, optionIndex) => (
+                      <label className="learner-quiz-option" key={option}>
+                        <input
+                          checked={quizAnswers[question.id] === optionIndex}
+                          name={`quiz-question-${question.id}`}
+                          onChange={() => {
+                            setQuizAnswers((current) => ({
+                              ...current,
+                              [question.id]: optionIndex,
+                            }));
+                            setQuizError("");
+                          }}
+                          type="radio"
+                          value={optionIndex}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                ))}
+                {quizError && <p className="workspace-alert" role="alert">{quizError}</p>}
+                <button
+                  className="button button--primary"
+                  disabled={
+                    quizSubmitting ||
+                    module.quiz_questions.length < 5 ||
+                    module.quiz_questions.some(
+                      (question) => quizAnswers[question.id] === undefined,
+                    )
+                  }
+                  onClick={() => void submitQuiz()}
+                  type="button"
+                >
+                  {quizSubmitting ? "Submitting quiz…" : "Submit quiz"}
+                </button>
+                {module.quiz_attempts.map((attempt, index) => (
+                  <article className="learner-completion" key={attempt.id}>
+                    <strong>
+                      {index === 0 ? "Latest result: " : "Previous attempt: "}
+                      {attempt.score} / {attempt.total_questions}
+                    </strong>
+                    <p>{new Date(attempt.submitted_at).toLocaleString()}</p>
+                    <ul>
+                      {attempt.feedback.split("\n").map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
               </section>
 
               <section className="learner-module-section">

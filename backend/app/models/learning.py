@@ -27,6 +27,8 @@ class LearningModule(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     week_number: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(200))
+    image_url: Mapped[str] = mapped_column(String(500), default="")
+    image_alt: Mapped[str] = mapped_column(String(500), default="")
     content_markdown: Mapped[str] = mapped_column(
         Text().with_variant(MEDIUMTEXT(), "mysql"), default=""
     )
@@ -39,8 +41,14 @@ class LearningModule(Base):
     reviewed_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
+    facilitator_guide: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     questions: Mapped[list["ModuleQuestion"]] = relationship(
         back_populates="module", cascade="all, delete-orphan", order_by="ModuleQuestion.position"
+    )
+    quiz_questions: Mapped[list["ModuleQuizQuestion"]] = relationship(
+        back_populates="module",
+        cascade="all, delete-orphan",
+        order_by="ModuleQuizQuestion.position",
     )
 
 
@@ -60,6 +68,47 @@ class ModuleQuestion(Base):
     kind: Mapped[str] = mapped_column(String(20), default="case_study")
     prompt: Mapped[str] = mapped_column(String(2000))
     module: Mapped[LearningModule] = relationship(back_populates="questions")
+
+
+class ModuleQuizQuestion(Base):
+    __tablename__ = "module_quiz_questions"
+    __table_args__ = (
+        UniqueConstraint("module_id", "position", name="uq_quiz_module_position"),
+        CheckConstraint("position BETWEEN 1 AND 7", name="ck_quiz_question_position"),
+        CheckConstraint("correct_option BETWEEN 0 AND 3", name="ck_quiz_correct_option"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    module_id: Mapped[int] = mapped_column(
+        ForeignKey("learning_modules.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(Integer)
+    prompt: Mapped[str] = mapped_column(String(2000))
+    options: Mapped[list[str]] = mapped_column(JSON)
+    correct_option: Mapped[int] = mapped_column(Integer)
+    explanation: Mapped[str] = mapped_column(String(2000))
+    module: Mapped[LearningModule] = relationship(back_populates="quiz_questions")
+
+
+class LearnerQuizAttempt(Base):
+    __tablename__ = "learner_quiz_attempts"
+    __table_args__ = (
+        CheckConstraint("score BETWEEN 0 AND total_questions", name="ck_quiz_attempt_score"),
+        CheckConstraint("total_questions BETWEEN 5 AND 7", name="ck_quiz_attempt_total"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    learner_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    module_id: Mapped[int] = mapped_column(
+        ForeignKey("learning_modules.id", ondelete="CASCADE"), index=True
+    )
+    answers: Mapped[dict[str, int]] = mapped_column(JSON)
+    score: Mapped[int] = mapped_column(Integer)
+    total_questions: Mapped[int] = mapped_column(Integer)
+    feedback: Mapped[str] = mapped_column(Text)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class LearnerModuleNote(Base):

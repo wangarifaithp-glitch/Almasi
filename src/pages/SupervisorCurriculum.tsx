@@ -8,14 +8,45 @@ type ModuleQuestion = {
   prompt: string;
 };
 
+type QuizQuestion = {
+  id: number;
+  position: number;
+  prompt: string;
+  options: string[];
+  correct_option: number;
+  explanation: string;
+};
+
+type SessionSegment = {
+  minutes: number;
+  segment: string;
+  facilitator_notes: string;
+};
+
+type FacilitatorGuide = {
+  review_status: string;
+  session_length_minutes: number;
+  facilitator_objective: string;
+  preparation: string[];
+  teaching_notes: string[];
+  discussion_questions: string[];
+  practical_activities: string[];
+  session_structure: SessionSegment[];
+  safeguarding: string[];
+};
+
 type SupervisorModule = {
   id: number;
   week_number: number;
   title: string;
+  image_url: string;
+  image_alt: string;
   content_markdown: string;
   learning_objectives: string[];
   reflection_prompts: string[];
   questions: ModuleQuestion[];
+  quiz_questions: QuizQuestion[];
+  facilitator_guide: FacilitatorGuide;
   is_published: boolean;
   reviewed_at: string | null;
   reviewed_by_id: number | null;
@@ -133,7 +164,7 @@ export default function SupervisorCurriculum() {
                 </span>
               </div>
               <details>
-                <summary>Read learner lesson, objectives, prompts and questions</summary>
+                <summary>Review learner lesson, quiz, answer key and facilitator guide</summary>
                 <div className="supervisor-curriculum__lesson">
                   <h5>Learner lesson</h5>
                   <div className="learner-module-prose">{module.content_markdown}</div>
@@ -160,6 +191,45 @@ export default function SupervisorCurriculum() {
                       </li>
                     ))}
                   </ol>
+                  <h5>Separate learner quiz and answer key</h5>
+                  <ol>
+                    {module.quiz_questions.map((question) => (
+                      <li key={question.id}>
+                        <strong>{question.prompt}</strong>
+                        <ul>
+                          {question.options.map((option, index) => (
+                            <li key={option}>
+                              {option}{index === question.correct_option ? " (answer key)" : ""}
+                            </li>
+                          ))}
+                        </ul>
+                        <p>{question.explanation}</p>
+                      </li>
+                    ))}
+                  </ol>
+                  <h5>Facilitator-only teaching guide</h5>
+                  <p className="workspace-alert" role="note">{module.facilitator_guide.review_status}</p>
+                  <p><strong>Session objective:</strong> {module.facilitator_guide.facilitator_objective}</p>
+                  <p><strong>Suggested session length:</strong> {module.facilitator_guide.session_length_minutes} minutes</p>
+                  <h6>Preparation</h6>
+                  <ul>{module.facilitator_guide.preparation.map((item) => <li key={item}>{item}</li>)}</ul>
+                  <h6>Teaching notes</h6>
+                  <ul>{module.facilitator_guide.teaching_notes.map((item) => <li key={item}>{item}</li>)}</ul>
+                  <h6>Discussion questions</h6>
+                  <ul>{module.facilitator_guide.discussion_questions.map((item) => <li key={item}>{item}</li>)}</ul>
+                  <h6>Practical activities</h6>
+                  <ul>{module.facilitator_guide.practical_activities.map((item) => <li key={item}>{item}</li>)}</ul>
+                  <h6>Session structure</h6>
+                  <ol>
+                    {module.facilitator_guide.session_structure.map((segment) => (
+                      <li key={`${segment.minutes}-${segment.segment}`}>
+                        <strong>{segment.minutes} min · {segment.segment}.</strong>{" "}
+                        {segment.facilitator_notes}
+                      </li>
+                    ))}
+                  </ol>
+                  <h6>Safeguarding</h6>
+                  <ul>{module.facilitator_guide.safeguarding.map((item) => <li key={item}>{item}</li>)}</ul>
                 </div>
               </details>
               {!module.is_published && (
@@ -176,8 +246,8 @@ export default function SupervisorCurriculum() {
                         }
                         type="checkbox"
                       />
-                      I reviewed this learner-facing content and confirmed it
-                      contains no facilitator-only material.
+                      I reviewed the learner lesson, quiz and answer key, plus
+                      the separate staff guide and safeguarding notes.
                     </label>
                   )}
                   <button

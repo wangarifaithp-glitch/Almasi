@@ -21,8 +21,10 @@ from app.models import (
     LearnerModuleReflection,
     LearnerModuleSubmission,
     LearnerQuestionAnswer,
+    LearnerQuizAttempt,
     LearningModule,
     ModuleQuestion,
+    ModuleQuizQuestion,
     PasswordResetToken,
     User,
 )
@@ -38,10 +40,12 @@ TEST_SETTINGS = Settings(
     app_env="test",
 )
 DELETE_ORDER = (
+    LearnerQuizAttempt,
     LearnerQuestionAnswer,
     LearnerModuleSubmission,
     LearnerModuleReflection,
     LearnerModuleNote,
+    ModuleQuizQuestion,
     ModuleQuestion,
     LearningModule,
     PasswordResetToken,
@@ -74,6 +78,7 @@ class LearnerModuleTests(unittest.TestCase):
         self.db.commit()
         self.learner = self.create_user("learner@example.com", "learner")
         self.other_learner = self.create_user("other@example.com", "learner")
+        self.facilitator = self.create_user("facilitator@example.com", "facilitator")
         self.supervisor = self.create_user("supervisor@example.com", "supervisor")
         self.draft = self.create_module(published=False)
         self.module = self.create_module(published=True, week_number=2)
@@ -111,12 +116,43 @@ class LearnerModuleTests(unittest.TestCase):
             content_markdown="Approved lesson content.",
             learning_objectives=["Understand approved material."],
             reflection_prompts=["What is one takeaway from this lesson?"],
+            facilitator_guide={
+                "review_status": "Draft guide for human review.",
+                "session_length_minutes": 210,
+                "facilitator_objective": "Explore lesson ideas safely.",
+                "preparation": ["Review safeguarding procedures."],
+                "teaching_notes": ["Use fictional examples."],
+                "discussion_questions": ["What is one safe next step?"],
+                "practical_activities": ["Practise help-seeking."],
+                "session_structure": [
+                    {"minutes": 20, "segment": "Welcome"},
+                    {"minutes": 20, "segment": "Opening"},
+                    {"minutes": 35, "segment": "Teaching"},
+                    {"minutes": 10, "segment": "Break"},
+                    {"minutes": 40, "segment": "Activity"},
+                    {"minutes": 30, "segment": "Discussion"},
+                    {"minutes": 10, "segment": "Break"},
+                    {"minutes": 30, "segment": "Practice"},
+                    {"minutes": 15, "segment": "Close"},
+                ],
+                "safeguarding": ["Do not require personal disclosures."],
+            },
             is_published=published,
             created_at=utc_naive_now(),
             updated_at=utc_naive_now(),
             questions=[
                 ModuleQuestion(position=1, prompt="What did you learn?"),
                 ModuleQuestion(position=2, prompt="How will you apply it?"),
+            ],
+            quiz_questions=[
+                ModuleQuizQuestion(
+                    position=position,
+                    prompt=f"Quiz question {position}?",
+                    options=["A", "B", "C", "D"],
+                    correct_option=position % 4,
+                    explanation="Review the lesson idea.",
+                )
+                for position in range(1, 6)
             ],
         )
         self.db.add(module)
@@ -156,6 +192,9 @@ class LearnerModuleTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.json()["note"], "Updated note")
         self.assertEqual(detail.json()["reflection"], "Private thought")
+        self.assertEqual(len(detail.json()["quiz_questions"]), 5)
+        self.assertNotIn("correct_option", str(detail.json()["quiz_questions"]))
+        self.assertEqual(detail.json()["quiz_attempts"], [])
         self.assertEqual(
             detail.json()["reflection_prompts"],
             ["What is one takeaway from this lesson?"],
@@ -175,6 +214,7 @@ class LearnerModuleTests(unittest.TestCase):
         self.assertEqual(other_detail.json()["note"], "")
         self.assertEqual(other_detail.json()["reflection"], "")
         self.assertEqual(other_detail.json()["answers"], {})
+        self.assertEqual(other_detail.json()["quiz_attempts"], [])
         other_client.close()
 
         self.db.refresh(self.module)
@@ -294,6 +334,162 @@ class LearnerModuleTests(unittest.TestCase):
         )
         self.assertEqual(save_after_completion.status_code, 409)
 
+    def test_quiz_is_server_scored_saved_and_owned_by_learner(self) -> None:
+        question_ids = [question.id for question in self.module.quiz_questions]
+        payload = {
+            "answers": [
+                {
+                    "question_id": question.id,
+                    "selected_option": question.correct_option,
+                }
+                for question in self.module.quiz_questions
+            ],
+            "score": 0,
+            "correct_option": 3,
+        }
+        response = self.client.post(
+            f"/api/v1/learner/modules/{self.module.id}/quiz/submit",
+            json=payload,
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["score"], 5)
+        self.assertEqual(response.json()["total_questions"], 5)
+        self.assertNotIn("correct_option", response.text)
+        self.assertEqual(len(response.json()["feedback"].splitlines()), 5)
+        self.assertEqual(
+            self.db.scalar(select(func.count()).select_from(LearnerQuizAttempt)),
+            1,
+        )
+        detail = self.client.get(f"/api/v1/learner/modules/{self.module.id}")
+        self.assertEqual(len(detail.json()["quiz_attempts"]), 1)
+        self.assertEqual(detail.json()["quiz_attempts"][0]["score"], 5)
+
+        one_wrong_answer = self.client.post(
+            f"/api/v1/learner/modules/{self.module.id}/quiz/submit",
+            json={
+                "answers": [
+                    {
+                        "question_id": question.id,
+                        "selected_option": (
+                            (question.correct_option + 1) % len(question.options)
+                            if question.position == 1
+                            else question.correct_option
+                        ),
+                    }
+                    for question in self.module.quiz_questions
+                ]
+            },
+        )
+        self.assertEqual(one_wrong_answer.status_code, 201)
+        self.assertEqual(one_wrong_answer.json()["score"], 4)
+        history = self.client.get(
+            f"/api/v1/learner/modules/{self.module.id}"
+        ).json()["quiz_attempts"]
+        self.assertEqual([attempt["score"] for attempt in history], [4, 5])
+
+        other_client = TestClient(app)
+        self.authenticate(other_client, self.other_learner)
+        other_detail = other_client.get(f"/api/v1/learner/modules/{self.module.id}")
+        self.assertEqual(other_detail.json()["quiz_attempts"], [])
+        other_client.close()
+
+        incomplete = self.client.post(
+            f"/api/v1/learner/modules/{self.module.id}/quiz/submit",
+            json={"answers": payload["answers"][:-1]},
+        )
+        self.assertEqual(incomplete.status_code, 422)
+        invalid_question = self.client.post(
+            f"/api/v1/learner/modules/{self.module.id}/quiz/submit",
+            json={
+                "answers": [
+                    {"question_id": question_id, "selected_option": 0}
+                    for question_id in question_ids[:-1]
+                ]
+                + [{"question_id": 999999, "selected_option": 0}],
+            },
+        )
+        self.assertEqual(invalid_question.status_code, 422)
+
+    def test_facilitator_guides_are_staff_only_and_reviewable_by_supervisors(self) -> None:
+        facilitator_client = TestClient(app)
+        self.authenticate(facilitator_client, self.facilitator)
+        response = facilitator_client.get("/api/v1/facilitator/guides")
+        self.assertEqual(response.status_code, 200)
+        guide = response.json()[0]["facilitator_guide"]
+        self.assertEqual(guide["session_length_minutes"], 210)
+        self.assertEqual(
+            sum(segment["minutes"] for segment in guide["session_structure"]),
+            210,
+        )
+        self.assertIn("teaching_notes", guide)
+        learner_response = self.client.get(
+            f"/api/v1/learner/modules/{self.module.id}"
+        )
+        self.assertNotIn("facilitator_guide", learner_response.text)
+        self.assertEqual(
+            self.client.get("/api/v1/facilitator/guides").status_code,
+            403,
+        )
+        facilitator_client.close()
+
+        supervisor_client = TestClient(app)
+        self.authenticate(supervisor_client, self.supervisor)
+        supervisor_modules = supervisor_client.get("/api/v1/supervisor/modules")
+        self.assertEqual(supervisor_modules.status_code, 200)
+        reviewed_module = next(
+            item
+            for item in supervisor_modules.json()
+            if item["id"] == self.module.id
+        )
+        self.assertEqual(len(reviewed_module["quiz_questions"]), 5)
+        self.assertIn("correct_option", reviewed_module["quiz_questions"][0])
+        self.assertEqual(
+            reviewed_module["facilitator_guide"]["session_length_minutes"],
+            210,
+        )
+        self.assertEqual(
+            supervisor_client.get("/api/v1/facilitator/guides").status_code,
+            403,
+        )
+        supervisor_client.close()
+
+    @staticmethod
+    def quiz_payload() -> list[dict[str, object]]:
+        return [
+            {
+                "position": position,
+                "prompt": f"Quiz question {position}?",
+                "options": ["A", "B", "C", "D"],
+                "correct_option": position % 4,
+                "explanation": "Review this lesson idea.",
+            }
+            for position in range(1, 6)
+        ]
+
+    @staticmethod
+    def guide_payload() -> dict[str, object]:
+        return {
+            "review_status": "Draft for human review.",
+            "session_length_minutes": 210,
+            "facilitator_objective": "Teach safely.",
+            "preparation": ["Review safeguarding procedures."],
+            "teaching_notes": ["Use fictional examples."],
+            "discussion_questions": ["What is a safe next step?"],
+            "practical_activities": ["Practise help-seeking."],
+            "session_structure": [
+                {"minutes": 20, "segment": "Welcome", "facilitator_notes": "Set agreements."},
+                {"minutes": 20, "segment": "Opening", "facilitator_notes": "Introduce the topic."},
+                {"minutes": 35, "segment": "Teaching", "facilitator_notes": "Use examples."},
+                {"minutes": 10, "segment": "Break", "facilitator_notes": "Offer water."},
+                {"minutes": 40, "segment": "Activity", "facilitator_notes": "Practice skills."},
+                {"minutes": 30, "segment": "Discussion", "facilitator_notes": "Use prompts."},
+                {"minutes": 10, "segment": "Break", "facilitator_notes": "Offer a pause."},
+                {"minutes": 30, "segment": "Practice", "facilitator_notes": "Try a next step."},
+                {"minutes": 15, "segment": "Close", "facilitator_notes": "Name support options."},
+            ],
+            "safeguarding": ["Do not require personal disclosures."],
+        }
+
     def test_only_supervisors_can_create_and_publish_complete_modules(self) -> None:
         forbidden = self.client.post(
             "/api/v1/supervisor/modules",
@@ -304,6 +500,8 @@ class LearnerModuleTests(unittest.TestCase):
                 "learning_objectives": ["Objective"],
                 "reflection_prompts": ["What is one takeaway?"],
                 "questions": [{"position": 1, "prompt": "Question?"}],
+                "quiz_questions": self.quiz_payload(),
+                "facilitator_guide": self.guide_payload(),
             },
         )
         self.assertEqual(forbidden.status_code, 403)
@@ -330,6 +528,8 @@ class LearnerModuleTests(unittest.TestCase):
                         "prompt": "What will the learner practise?",
                     },
                 ],
+                "quiz_questions": self.quiz_payload(),
+                "facilitator_guide": self.guide_payload(),
             },
         )
         self.assertEqual(created.status_code, 201)
@@ -370,6 +570,8 @@ class LearnerModuleTests(unittest.TestCase):
                 "questions": [
                     {"position": 1, "kind": "case_study", "prompt": "Question?"}
                 ],
+                "quiz_questions": self.quiz_payload(),
+                "facilitator_guide": self.guide_payload(),
             },
         )
         self.assertEqual(incomplete.status_code, 201)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiError, apiFetch } from "../lib/api";
+import FacilitatorGuides from "./FacilitatorGuides";
 
 type GroupSummary = {
   id: number;
@@ -324,6 +325,40 @@ export default function FacilitatorDashboard() {
             <h2>Support your assigned groups.</h2>
             <p>Only groups assigned to your facilitator account appear here.</p>
           </section>
+          <section className="dashboard-hero dashboard-hero--staff">
+            <div>
+              <span className="dashboard-hero__eyebrow">FACILITATOR DASHBOARD</span>
+              <h3>Guide every learner with care and confidence.</h3>
+              <p>
+                Review submitted work, plan sessions, record attendance, and
+                keep supervisors informed from one workspace.
+              </p>
+            </div>
+            <div className="dashboard-hero__illustration" aria-hidden="true">✦</div>
+          </section>
+          <section className="dashboard-stat-grid" aria-label="Facilitator summary">
+            <article className="dashboard-stat">
+              <span>Assigned learners</span>
+              <strong>{data?.groups.reduce((total, group) => total + group.learner_count, 0) ?? 0}</strong>
+              <p>Across your active groups.</p>
+            </article>
+            <article className="dashboard-stat">
+              <span>Pending review</span>
+              <strong>{data?.submissions.filter((item) => item.status === "submitted").length ?? 0}</strong>
+              <p>Submissions waiting for feedback.</p>
+            </article>
+            <article className="dashboard-stat">
+              <span>Upcoming sessions</span>
+              <strong>{data?.sessions.length ?? 0}</strong>
+              <p>Session plans available below.</p>
+            </article>
+            <article className="dashboard-stat dashboard-stat--accent">
+              <span>Attendance records</span>
+              <strong>{data?.groups.reduce((total, group) => total + group.attendance_records, 0) ?? 0}</strong>
+              <p>Recorded across assigned groups.</p>
+            </article>
+          </section>
+          <FacilitatorGuides />
           <section className="workspace-staff-grid">
             {data?.groups.map((group) => (
               <article className="workspace-card workspace-staff-card" key={group.id}>

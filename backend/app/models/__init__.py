@@ -4,8 +4,10 @@ from app.models.learning import (
     LearnerModuleReflection,
     LearnerModuleSubmission,
     LearnerQuestionAnswer,
+    LearnerQuizAttempt,
     LearningModule,
     ModuleQuestion,
+    ModuleQuizQuestion,
 )
 from app.models.programme import (
     AssignmentSubmission,
@@ -28,10 +30,12 @@ __all__ = [
     "LearnerModuleSubmission",
     "LearnerProgress",
     "LearnerQuestionAnswer",
+    "LearnerQuizAttempt",
     "LearningModule",
     "MentorshipGroup",
     "MentorshipSession",
     "ModuleQuestion",
+    "ModuleQuizQuestion",
     "PasswordResetToken",
     "ProgrammeAssignment",
     "AssignmentSubmission",

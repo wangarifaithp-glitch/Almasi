@@ -10,14 +10,17 @@ from app.models import (
     LearnerModuleNote,
     LearnerModuleReflection,
     LearnerModuleSubmission,
+    LearnerQuizAttempt,
     LearnerProgress,
     LearnerQuestionAnswer,
     LearningModule,
     ModuleQuestion,
+    ModuleQuizQuestion,
     User,
 )
 from app.schemas.learning import (
     DraftModuleCreate,
+    FacilitatorGuideResponse,
     ModuleAnswerSaveRequest,
     ModuleAnswerSaveResponse,
     LearnerContentResponse,
@@ -27,13 +30,17 @@ from app.schemas.learning import (
     ModuleReviewResponse,
     ModuleSubmissionRequest,
     ModuleSubmissionResponse,
+    QuizAttemptResponse,
+    QuizSubmissionRequest,
     PrivateTextResponse,
     PrivateTextUpsert,
     SupervisorModuleResponse,
+    SupervisorQuizQuestionResponse,
 )
 
 learner_router = APIRouter(prefix="/learner/modules")
 supervisor_router = APIRouter(prefix="/supervisor/modules")
+facilitator_guide_router = APIRouter(prefix="/facilitator/guides")
 
 
 @supervisor_router.get("", response_model=list[SupervisorModuleResponse])
@@ -43,7 +50,10 @@ def list_supervisor_modules(
 ) -> list[SupervisorModuleResponse]:
     modules = db.scalars(
         select(LearningModule)
-        .options(selectinload(LearningModule.questions))
+        .options(
+            selectinload(LearningModule.questions),
+            selectinload(LearningModule.quiz_questions),
+        )
         .order_by(LearningModule.week_number)
     ).all()
     return [
@@ -51,10 +61,24 @@ def list_supervisor_modules(
             id=module.id,
             week_number=module.week_number,
             title=module.title,
+            image_url=module.image_url,
+            image_alt=module.image_alt,
             content_markdown=module.content_markdown,
             learning_objectives=module.learning_objectives,
             reflection_prompts=module.reflection_prompts,
             questions=module.questions,
+            quiz_questions=[
+                SupervisorQuizQuestionResponse(
+                    id=question.id,
+                    position=question.position,
+                    prompt=question.prompt,
+                    options=question.options,
+                    correct_option=question.correct_option,
+                    explanation=question.explanation,
+                )
+                for question in module.quiz_questions
+            ],
+            facilitator_guide=module.facilitator_guide,
             is_published=module.is_published,
             reviewed_at=module.reviewed_at,
             reviewed_by_id=module.reviewed_by_id,
@@ -66,7 +90,10 @@ def list_supervisor_modules(
 def published_module(db: Session, module_id: int) -> LearningModule:
     module = db.scalar(
         select(LearningModule)
-        .options(selectinload(LearningModule.questions))
+        .options(
+            selectinload(LearningModule.questions),
+            selectinload(LearningModule.quiz_questions),
+        )
         .where(
             LearningModule.id == module_id,
             LearningModule.is_published.is_(True),
@@ -78,6 +105,65 @@ def published_module(db: Session, module_id: int) -> LearningModule:
             detail="Published module not found.",
         )
     return module
+
+
+def has_reviewable_supplements(module: LearningModule) -> bool:
+    quiz_questions = module.quiz_questions
+    guide = module.facilitator_guide
+    if not 5 <= len(quiz_questions) <= 7:
+        return False
+    if any(
+        not question.prompt.strip()
+        or not question.explanation.strip()
+        or len(question.options) != 4
+        or not 0 <= question.correct_option < len(question.options)
+        or any(not option.strip() for option in question.options)
+        for question in quiz_questions
+    ):
+        return False
+    if not isinstance(guide, dict):
+        return False
+    try:
+        session_length = guide["session_length_minutes"]
+        structure = guide["session_structure"]
+        required_lists = (
+            guide["preparation"],
+            guide["teaching_notes"],
+            guide["discussion_questions"],
+            guide["practical_activities"],
+            guide["safeguarding"],
+        )
+        if (
+            not isinstance(session_length, int)
+            or not 180 <= session_length <= 240
+            or not isinstance(structure, list)
+            or len(structure) < 4
+            or not all(
+                isinstance(items, list)
+                and items
+                and all(isinstance(item, str) and item.strip() for item in items)
+                for items in required_lists
+            )
+            or not isinstance(guide["facilitator_objective"], str)
+            or not guide["facilitator_objective"].strip()
+            or not isinstance(guide["review_status"], str)
+            or not guide["review_status"].strip()
+        ):
+            return False
+        durations = [
+            item["minutes"]
+            for item in structure
+            if isinstance(item, dict)
+            and isinstance(item.get("minutes"), int)
+            and item["minutes"] > 0
+            and isinstance(item.get("segment"), str)
+            and item["segment"].strip()
+            and isinstance(item.get("facilitator_notes"), str)
+            and item["facilitator_notes"].strip()
+        ]
+        return len(durations) == len(structure) and sum(durations) == session_length
+    except KeyError:
+        return False
 
 
 @learner_router.get("", response_model=list[ModuleProgressResponse])
@@ -144,14 +230,34 @@ def get_module(
             LearnerModuleSubmission.module_id == module.id,
         )
     )
+    quiz_attempts = db.scalars(
+        select(LearnerQuizAttempt)
+        .where(
+            LearnerQuizAttempt.learner_id == user.id,
+            LearnerQuizAttempt.module_id == module.id,
+        )
+        .order_by(LearnerQuizAttempt.submitted_at.desc(), LearnerQuizAttempt.id.desc())
+    ).all()
     return LearnerContentResponse(
         id=module.id,
         week_number=module.week_number,
         title=module.title,
+        image_url=module.image_url,
+        image_alt=module.image_alt,
         content_markdown=module.content_markdown,
         learning_objectives=module.learning_objectives,
         reflection_prompts=module.reflection_prompts,
         questions=module.questions,
+        quiz_questions=[
+            {
+                "id": question.id,
+                "position": question.position,
+                "prompt": question.prompt,
+                "options": question.options,
+            }
+            for question in module.quiz_questions
+        ],
+        quiz_attempts=quiz_attempts,
         note=note.content if note else "",
         note_updated_at=note.updated_at if note else None,
         reflection=reflection.content if reflection else "",
@@ -168,6 +274,98 @@ def get_module(
             else None
         ),
     )
+
+
+@learner_router.post(
+    "/{module_id}/quiz/submit",
+    response_model=QuizAttemptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def submit_quiz(
+    module_id: int,
+    data: QuizSubmissionRequest,
+    user: User = Depends(require_role("learner")),
+    db: Session = Depends(get_db),
+) -> QuizAttemptResponse:
+    module = published_module(db, module_id)
+    questions = db.scalars(
+        select(ModuleQuizQuestion)
+        .where(ModuleQuizQuestion.module_id == module.id)
+        .order_by(ModuleQuizQuestion.position)
+    ).all()
+    if not 5 <= len(questions) <= 7:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This module quiz is not ready for submission.",
+        )
+
+    answer_by_id = {answer.question_id: answer.selected_option for answer in data.answers}
+    question_by_id = {question.id: question for question in questions}
+    if set(answer_by_id) != set(question_by_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Select one answer for every quiz question.",
+        )
+    for question_id, selected_option in answer_by_id.items():
+        if selected_option >= len(question_by_id[question_id].options):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="A selected answer is not available for that question.",
+            )
+
+    score = 0
+    feedback_lines: list[str] = []
+    for question in questions:
+        selected = answer_by_id[question.id]
+        is_correct = selected == question.correct_option
+        score += int(is_correct)
+        feedback_lines.append(
+            f"Question {question.position}: "
+            f"{'Correct.' if is_correct else 'Review this idea.'} {question.explanation}"
+        )
+
+    attempt = LearnerQuizAttempt(
+        learner_id=user.id,
+        module_id=module.id,
+        answers={str(question_id): selected for question_id, selected in answer_by_id.items()},
+        score=score,
+        total_questions=len(questions),
+        feedback="\n".join(feedback_lines),
+        submitted_at=utc_naive_now(),
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return QuizAttemptResponse(
+        id=attempt.id,
+        answers={int(question_id): selected for question_id, selected in attempt.answers.items()},
+        score=attempt.score,
+        total_questions=attempt.total_questions,
+        feedback=attempt.feedback,
+        submitted_at=attempt.submitted_at,
+    )
+
+
+@facilitator_guide_router.get("", response_model=list[FacilitatorGuideResponse])
+def list_facilitator_guides(
+    _: User = Depends(require_role("facilitator")),
+    db: Session = Depends(get_db),
+) -> list[FacilitatorGuideResponse]:
+    modules = db.scalars(
+        select(LearningModule)
+        .where(LearningModule.is_published.is_(True))
+        .order_by(LearningModule.week_number)
+    ).all()
+    return [
+        FacilitatorGuideResponse(
+            id=module.id,
+            week_number=module.week_number,
+            title=module.title,
+            facilitator_guide=module.facilitator_guide,
+        )
+        for module in modules
+        if module.facilitator_guide
+    ]
 
 
 def save_private_text(
@@ -411,9 +609,12 @@ def replace_draft_questions(
 ) -> None:
     module.week_number = data.week_number
     module.title = data.title
+    module.image_url = data.image_url
+    module.image_alt = data.image_alt
     module.content_markdown = data.content_markdown
     module.learning_objectives = data.learning_objectives
     module.reflection_prompts = data.reflection_prompts
+    module.facilitator_guide = data.facilitator_guide.model_dump()
     module.reviewed_at = None
     module.reviewed_by_id = None
     module.updated_at = utc_naive_now()
@@ -426,6 +627,19 @@ def replace_draft_questions(
             prompt=question.prompt,
         )
         for question in data.questions
+    ]
+    db.execute(
+        delete(ModuleQuizQuestion).where(ModuleQuizQuestion.module_id == module.id)
+    )
+    module.quiz_questions = [
+        ModuleQuizQuestion(
+            position=question.position,
+            prompt=question.prompt,
+            options=question.options,
+            correct_option=question.correct_option,
+            explanation=question.explanation,
+        )
+        for question in data.quiz_questions
     ]
 
 
@@ -442,10 +656,13 @@ def create_module_draft(
     module = LearningModule(
         week_number=data.week_number,
         title=data.title,
+        image_url=data.image_url,
+        image_alt=data.image_alt,
         content_markdown=data.content_markdown,
         learning_objectives=data.learning_objectives,
         is_published=False,
         reflection_prompts=data.reflection_prompts,
+        facilitator_guide=data.facilitator_guide.model_dump(),
         reviewed_at=None,
         reviewed_by_id=None,
         created_at=utc_naive_now(),
@@ -457,6 +674,16 @@ def create_module_draft(
                 prompt=question.prompt,
             )
             for question in data.questions
+        ],
+        quiz_questions=[
+            ModuleQuizQuestion(
+                position=question.position,
+                prompt=question.prompt,
+                options=question.options,
+                correct_option=question.correct_option,
+                explanation=question.explanation,
+            )
+            for question in data.quiz_questions
         ],
     )
     db.add(module)
@@ -544,10 +771,11 @@ def review_module(
         or not module.questions
         or not any(question.kind == "case_study" for question in module.questions)
         or not any(question.kind == "assignment" for question in module.questions)
+        or not has_reviewable_supplements(module)
     ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Lesson content, objectives, reflection prompts, case studies, and assignments are required for review.",
+            detail="Lesson content, objectives, reflections, case studies, assignments, a valid 5–7 question quiz, and a complete 3–4-hour facilitator guide are required for review.",
         )
     if any(
         not value.strip()
@@ -560,6 +788,14 @@ def review_module(
     module.reviewed_at = utc_naive_now()
     module.reviewed_by_id = user.id
     module.updated_at = module.reviewed_at
+    module.facilitator_guide = {
+        **module.facilitator_guide,
+        "review_status": (
+            f"Reviewed by an authorized supervisor on "
+            f"{module.reviewed_at.date().isoformat()}. Follow local safeguarding "
+            "procedures and confirm local curriculum alignment."
+        ),
+    }
     db.commit()
     return ModuleReviewResponse(
         id=module.id,
@@ -589,10 +825,14 @@ def publish_module(
             status_code=status.HTTP_409_CONFLICT,
             detail="A supervisor must review this module before it can be published.",
         )
-    if not module.content_markdown.strip() or not module.learning_objectives:
+    if (
+        not module.content_markdown.strip()
+        or not module.learning_objectives
+        or not has_reviewable_supplements(module)
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="A module needs approved content and learning objectives before publishing.",
+            detail="A module needs approved content, learning objectives, a 5–7 question quiz, and a facilitator guide before publishing.",
         )
     if any(not objective.strip() for objective in module.learning_objectives):
         raise HTTPException(
