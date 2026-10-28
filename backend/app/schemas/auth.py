@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -65,6 +66,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: Literal["learner", "facilitator", "supervisor", "administrator"]
     is_active: bool
+    email_verified_at: datetime | None
 
     model_config = {"from_attributes": True}
 

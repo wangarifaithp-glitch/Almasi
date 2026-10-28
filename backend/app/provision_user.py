@@ -43,6 +43,7 @@ def provision_staff_account(
             is_active=True,
             session_version=0,
             created_at=now,
+            email_verified_at=now,
         )
         db.add(user)
         db.flush()
@@ -51,6 +52,7 @@ def provision_staff_account(
         user.password_hash = hash_password(password)
         user.role = role
         user.is_active = True
+        user.email_verified_at = now
         user.session_version += 1
 
     db.add(

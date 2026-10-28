@@ -1,4 +1,4 @@
-from app.models.auth import PasswordResetToken, User
+from app.models.auth import EmailVerificationToken, PasswordResetToken, User
 from app.models.learning import (
     LearnerModuleNote,
     LearnerModuleReflection,
@@ -37,6 +37,7 @@ __all__ = [
     "ModuleQuestion",
     "ModuleQuizQuestion",
     "PasswordResetToken",
+    "EmailVerificationToken",
     "ProgrammeAssignment",
     "AssignmentSubmission",
     "SubmissionRevision",

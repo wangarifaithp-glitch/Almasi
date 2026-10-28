@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Brand from "../components/Brand";
 import { ApiError, apiFetch } from "../lib/api";
 
-type AuthMode = "login" | "signup" | "forgot" | "reset";
+type AuthMode = "login" | "signup" | "forgot" | "reset" | "verify";
 
 const passwordChecks = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -18,7 +18,8 @@ function isStrongPassword(value: string): boolean {
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return "That email and password combination wasn’t recognized.";
+    if (error.status === 401) return "That email and password combination wasn’t recognized, or the email has not been verified.";
+    if (error.status === 403) return "Please verify your email address before signing in.";
     if (error.status === 409) return "An account already exists for that email address. Try signing in instead.";
     if (error.status === 422) return "Please check the details and password requirements, then try again.";
     if (error.status === 400) return "This password reset link is invalid or has expired. Request a new one.";
@@ -31,7 +32,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function getMode(value: string | null): AuthMode {
-  return value === "signup" || value === "forgot" || value === "reset" ? value : "login";
+  return value === "signup" || value === "forgot" || value === "reset" || value === "verify" ? value : "login";
 }
 
 export default function AuthPage() {
@@ -49,6 +50,18 @@ export default function AuthPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (mode !== "verify") return;
+    void (async () => {
+      try {
+        const response = await apiFetch(`auth/verify-email?token=${encodeURIComponent(resetToken)}`);
+        setMessage((await response.json() as { message: string }).message);
+      } catch {
+        setError("This verification link is invalid or has expired.");
+      }
+    })();
+  }, [mode, resetToken]);
 
   function changeMode(nextMode: AuthMode) {
     setError("");
@@ -84,7 +97,9 @@ export default function AuthPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, email, password }),
         });
-        navigate("/app/learner", { replace: true });
+        setMessage("Check your email for a verification link before signing in.");
+        setPassword("");
+        setConfirmPassword("");
         return;
       }
       if (mode === "login") {
@@ -139,8 +154,11 @@ export default function AuthPage() {
   }
 
   const isPasswordForm = mode === "signup" || mode === "reset";
+  const isVerification = mode === "verify";
   const title =
-    mode === "signup"
+    mode === "verify"
+      ? "Verify your email."
+      : mode === "signup"
       ? "Begin your journey."
       : mode === "forgot"
         ? "Let’s get you back in."
@@ -148,7 +166,9 @@ export default function AuthPage() {
           ? "Choose a new password."
           : "Welcome back.";
   const subtitle =
-    mode === "signup"
+    mode === "verify"
+      ? "Confirm your email address to activate your ALMASI account."
+      : mode === "signup"
       ? "Create your ALMASI account and take your next step."
       : mode === "forgot"
         ? "Enter your email and we’ll send you a secure password reset link."
@@ -204,6 +224,12 @@ export default function AuthPage() {
           )}
 
           <form className="auth-form" onSubmit={handleSubmit}>
+            {isVerification ? (
+              <p className="auth-alert" role="status">
+                {message || error || "Verifying your email address…"}
+              </p>
+            ) : (
+            <>
             {mode === "signup" && (
               <label className="auth-field">
                 <span>Full name</span>
@@ -299,6 +325,8 @@ export default function AuthPage() {
                       : "Sign in"}
               {!isSubmitting && <span aria-hidden="true">→</span>}
             </button>
+            </>
+            )}
           </form>
 
           <p className="auth-privacy">

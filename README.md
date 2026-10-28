@@ -69,7 +69,7 @@ pip install -r requirements.txt
 # Windows PowerShell: if (-not (Test-Path .env)) { Copy-Item .env.sqlite.example .env }
 # macOS/Linux: [ -f .env ] || cp .env.sqlite.example .env
 python -c "import secrets; print(secrets.token_urlsafe(48))"  # Use output for AUTH_SECRET_KEY
-# Add the generated key to .env. Configure Resend only if password reset email is needed.
+# Add the generated key to .env. Configure Resend for account verification and password reset emails.
 python -m alembic upgrade head
 uvicorn app.main:app --reload
 ```
@@ -79,7 +79,10 @@ SQLite template and run Alembic and Uvicorn from `backend/`; the ignored
 database file is created there. If you already have a configured database or
 user data, preserve its `DATABASE_URL` and back it up before changing database
 settings. Set `AUTH_SECRET_KEY` to a newly generated value of at least 32 bytes,
-and configure the email values only if password reset email is needed.
+and configure the email values before accepting registrations. New learner
+accounts remain inactive for sign-in until the recipient verifies the email
+address using the one-time link. Staff accounts provisioned by the trusted CLI
+are marked verified.
 The backend resolves its `.env` file relative to `backend/app/core/config.py`,
 so launching Uvicorn or Alembic from another working directory does not select
 a different `.env`. Process environment variables take precedence over values
@@ -170,8 +173,8 @@ Backend settings are read from the process environment or `backend/.env`:
 | `CORS_ORIGINS` | Comma-separated list of exact frontend origins allowed to call the API. |
 | `AUTH_SECRET_KEY` | A random private key used to sign the HttpOnly session cookie. |
 | `APP_BASE_URL` | Frontend origin used to construct password-reset links. |
-| `RESEND_API_KEY` | Private Resend API key used to send password-reset emails. |
-| `RESEND_FROM_EMAIL` | Sender address on a domain verified with Resend. |
+| `RESEND_API_KEY` | Private Resend API key used for verification and password-reset emails. |
+| `RESEND_FROM_EMAIL` | Sender address on a domain verified with Resend. Required for registration. |
 
 Frontend settings use Vite's `VITE_` prefix. `VITE_API_BASE_URL` is the
 non-secret base URL for API calls. Optional public destinations are

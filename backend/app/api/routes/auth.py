@@ -9,10 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.email import send_password_reset_email
+from app.core.email import send_password_reset_email, send_verification_email
 from app.core.security import (
+    EMAIL_VERIFICATION_TTL,
     RESET_TTL,
     SESSION_TTL,
+    create_email_verification_token,
     create_reset_token,
     create_session_token,
     hash_password,
@@ -22,7 +24,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
-from app.models import PasswordResetToken, User
+from app.models import EmailVerificationToken, PasswordResetToken, User
 from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -92,7 +94,12 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required.")
     user_id, session_version = claims
     user = db.get(User, user_id)
-    if user is None or not user.is_active or user.session_version != session_version:
+    if (
+        user is None
+        or not user.is_active
+        or user.email_verified_at is None
+        or user.session_version != session_version
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required.")
     return user
 
@@ -112,7 +119,7 @@ def require_role(role: str | tuple[str, ...]):
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(
+async def register(
     data: RegisterRequest,
     response: Response,
     _: None = Depends(require_trusted_origin),
@@ -126,6 +133,7 @@ def register(
         password_hash=hash_password(data.password),
         role="learner",
         created_at=utc_naive_now(),
+        email_verified_at=None,
     )
     db.add(user)
     try:
@@ -136,8 +144,33 @@ def register(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account already exists for that email address.",
         ) from exc
-    db.refresh(user)
-    set_session_cookie(response, user, settings)
+    user.email_verified_at = None
+    db.commit()
+    now = utc_naive_now()
+    raw_token = create_email_verification_token()
+    db.add(
+        EmailVerificationToken(
+            user_id=user.id,
+            token_hash=hash_reset_token(raw_token),
+            expires_at=now + EMAIL_VERIFICATION_TTL,
+            created_at=now,
+        )
+    )
+    db.commit()
+    verification_url = (
+        f"{settings.app_base_url.rstrip('/')}/auth?mode=verify"
+        f"&token={quote(raw_token, safe='')}"
+    )
+    try:
+        await send_verification_email(settings, user.email, user.name, verification_url)
+    except (RuntimeError, httpx.HTTPError) as exc:
+        logger.exception("Unable to deliver verification email for user id %s.", user.id)
+        db.delete(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Verification email could not be sent. Please try again later.",
+        ) from exc
     return user
 
 
@@ -151,6 +184,11 @@ def login(
 ) -> User:
     require_auth_secret(settings)
     user = db.scalar(select(User).where(User.email == str(data.email).lower()))
+    if user is not None and user.is_active and user.email_verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before signing in.",
+        )
     if (
         user is None
         or not user.is_active
@@ -293,6 +331,33 @@ def reset_password(
     )
     db.commit()
     return MessageResponse(message="Password updated. Please sign in again.")
+
+
+@router.get("/verify-email", response_model=MessageResponse)
+def verify_email(token: str, db: Session = Depends(get_db)) -> MessageResponse:
+    now = utc_naive_now()
+    record = db.scalar(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.token_hash == hash_reset_token(token),
+            EmailVerificationToken.used_at.is_(None),
+            EmailVerificationToken.expires_at > now,
+        )
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link is invalid or has expired.",
+        )
+    user = db.get(User, record.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link is invalid or has expired.",
+        )
+    user.email_verified_at = now
+    record.used_at = now
+    db.commit()
+    return MessageResponse(message="Email verified. You can now sign in.")
 
 
 @WORKSPACE_ROUTER.get("/learner", response_model=WorkspaceAccessResponse)

@@ -8,6 +8,7 @@ from pwdlib import PasswordHash
 password_hash = PasswordHash.recommended()
 SESSION_TTL = timedelta(hours=8)
 RESET_TTL = timedelta(minutes=30)
+EMAIL_VERIFICATION_TTL = timedelta(hours=24)
 
 
 def hash_password(password: str) -> str:
@@ -45,6 +46,10 @@ def read_session_claims(token: str, secret: str) -> tuple[int, int] | None:
 
 
 def create_reset_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def create_email_verification_token() -> str:
     return secrets.token_urlsafe(32)
 
 

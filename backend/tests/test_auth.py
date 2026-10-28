@@ -80,9 +80,31 @@ class AuthenticationTests(unittest.TestCase):
             "password": STRONG_PASSWORD,
             **extra,
         }
-        return self.client.post(
-            "/api/v1/auth/register", headers=TEST_ORIGIN, json=payload
-        )
+        verification_urls: list[str] = []
+
+        async def capture_email(_settings, _recipient, _name, url):
+            verification_urls.append(url)
+
+        with patch(
+            "app.api.routes.auth.send_verification_email",
+            new=capture_email,
+        ):
+            response = self.client.post(
+                "/api/v1/auth/register", headers=TEST_ORIGIN, json=payload
+            )
+        if response.status_code == 201:
+            token = parse_qs(urlparse(verification_urls[0]).query)["token"][0]
+            verified = self.client.get(
+                "/api/v1/auth/verify-email",
+                params={"token": token},
+            )
+            self.assertEqual(verified.status_code, 200)
+            self.client.post(
+                "/api/v1/auth/login",
+                headers=TEST_ORIGIN,
+                json={"email": payload["email"], "password": payload["password"]},
+            )
+        return response
 
     def test_signup_hashes_password_and_never_accepts_self_assigned_role(self) -> None:
         response = self.register(role="supervisor")
@@ -91,9 +113,9 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(response.json()["role"], "learner")
         self.assertNotIn("password_hash", response.json())
         self.assertNotIn(STRONG_PASSWORD, response.text)
-        self.assertIn("httponly", response.headers["set-cookie"].lower())
         user = self.db.scalar(select(User))
         self.assertIsNotNone(user)
+        self.assertIsNotNone(user.email_verified_at)
         self.assertNotEqual(user.password_hash, STRONG_PASSWORD)
         self.assertTrue(user.password_hash.startswith("$argon2"))
 
@@ -226,6 +248,23 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["detail"], "Email or password is incorrect.")
         self.assertNotIn("set-cookie", response.headers)
+
+    def test_login_rejects_an_unverified_email(self) -> None:
+        payload = {
+            "name": "Unverified",
+            "email": "unverified@example.com",
+            "password": STRONG_PASSWORD,
+        }
+        with patch("app.api.routes.auth.send_verification_email", new=AsyncMock()):
+            registration = self.client.post(
+                "/api/v1/auth/register", headers=TEST_ORIGIN, json=payload
+            )
+        self.assertEqual(registration.status_code, 201)
+        login = self.client.post(
+            "/api/v1/auth/login", headers=TEST_ORIGIN, json=payload
+        )
+        self.assertEqual(login.status_code, 403)
+        self.assertIn("verify your email", login.json()["detail"])
 
     def test_unknown_and_known_email_reset_responses_are_indistinguishable(self) -> None:
         self.register()
