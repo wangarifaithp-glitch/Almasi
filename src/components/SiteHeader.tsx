@@ -13,11 +13,13 @@ export default function SiteHeader() {
           <a href="#contact">Contact</a>
         </nav>
         <div className="site-header__actions">
-          <Link className="header-signin" to="/auth?mode=login">
-            Sign In
+          <Link className="header-auth-button header-auth-button--login" to="/auth?mode=login">
+            <span>Log in</span>
+            <span className="header-auth-button__icon" aria-hidden="true">↗</span>
           </Link>
-          <Link className="button button--small button--header-cta" to="/signup">
-            Get Started
+          <Link className="header-auth-button header-auth-button--signup" to="/signup">
+            <span>Sign up</span>
+            <span className="header-auth-button__icon" aria-hidden="true">↗</span>
           </Link>
         </div>
       </div>

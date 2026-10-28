@@ -137,7 +137,7 @@ class AssignmentResponse(BaseModel):
     due_at: datetime | None
     status: Literal["open", "locked", "archived"]
     submission_id: int | None = None
-    submission_status: Literal["draft", "submitted", "reviewed", "locked"] | None = None
+    submission_status: Literal["draft", "submitted", "approved", "returned_for_improvement", "locked"] | None = None
     submission_content: str | None = None
     submitted_at: datetime | None = None
     feedback: str | None = None
@@ -159,6 +159,7 @@ class SubmissionUpsert(BaseModel):
 class FeedbackUpsert(BaseModel):
     comments: str = Field(min_length=1, max_length=20_000)
     score: int | None = Field(default=None, ge=0, le=100)
+    decision: Literal["approved", "returned_for_improvement"] = "approved"
 
     @field_validator("comments")
     @classmethod
@@ -177,7 +178,7 @@ class FacilitatorSubmissionResponse(BaseModel):
     learner_id: int
     learner_name: str
     content: str
-    status: Literal["draft", "submitted", "reviewed", "locked"]
+    status: Literal["draft", "submitted", "approved", "returned_for_improvement", "locked"]
     submitted_at: datetime | None
     feedback: str | None
     score: int | None

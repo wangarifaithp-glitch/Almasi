@@ -111,7 +111,7 @@ class AssignmentSubmission(Base):
     __table_args__ = (
         UniqueConstraint("assignment_id", "learner_id", name="uq_submission_assignment_learner"),
         CheckConstraint(
-            "status IN ('draft', 'submitted', 'reviewed', 'locked')",
+            "status IN ('draft', 'submitted', 'approved', 'returned_for_improvement', 'locked')",
             name="ck_submission_status",
         ),
     )
@@ -122,7 +122,7 @@ class AssignmentSubmission(Base):
     )
     learner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     content: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(20), default="draft", server_default="draft")
+    status: Mapped[str] = mapped_column(String(32), default="draft", server_default="draft")
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_by_id: Mapped[int | None] = mapped_column(

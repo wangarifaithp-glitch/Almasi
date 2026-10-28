@@ -145,7 +145,7 @@ uvicorn app.main:app --reload
 ```
 
 Verify `http://localhost:8000/api/v1/health` reports
-`{"status":"ok","database":"ok"}` before trying registration or sign-in. The
+`{"status":"healthy","database":"connected"}` before trying registration or sign-in. The
 12 curriculum modules are seeded as unpublished drafts. A trusted supervisor
 must review and publish each module before it appears in the learner module
 list.
@@ -177,8 +177,8 @@ Frontend settings use Vite's `VITE_` prefix. `VITE_API_BASE_URL` is the
 non-secret base URL for API calls. Optional public destinations are
 `VITE_CONTACT_URL`, `VITE_DEVELOPER_URL`, `VITE_INSTAGRAM_URL`,
 `VITE_FACEBOOK_URL`, `VITE_TIKTOK_URL`, and `VITE_YOUTUBE_URL`. Configure these
-only with destinations ALMASI has confirmed; unconfigured social accounts are
-shown as placeholders, not links. Without a contact URL, contact actions use
+with ALMASI's confirmed social profile URLs; if they are omitted, the footer
+opens the corresponding platform homepage. Without a contact URL, contact actions use
 the public landing-page contact section. Without a developer portfolio URL,
 the Developer page explains that no portfolio has been configured.
 
@@ -348,15 +348,22 @@ real values are ignored by Git.
   `VITE_API_BASE_URL` to the deployed API's public HTTPS base URL ending in
   `/api/v1` (or use `/api/v1` if the same-origin reverse proxy forwards that
   path to the backend). The Vite development proxy is not used in production.
-- **Backend:** deploy `backend/` to a Python ASGI-compatible host, install
-  `backend/requirements.txt`, and run `uvicorn app.main:app --host 0.0.0.0
-  --port $PORT` (adapt the port syntax to the host). Configure `DATABASE_URL`,
-  `CORS_ORIGINS`, `AUTH_SECRET_KEY`, `APP_ENV=production`, `APP_BASE_URL`,
-  `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` as host-managed environment
-  variables. Set the platform's working directory to `backend` so settings
-  and Alembic load the correct files. Apply `python -m alembic upgrade head`
-  as a release/deploy step before routing account traffic, then verify the
-  public `/api/v1/health` endpoint returns HTTP 200.
+- **Frontend (Render):** the same [`render.yaml`](./render.yaml) also defines
+  a static site using `npm ci && npm run build` and `dist`. Set
+  `VITE_API_BASE_URL` to the backend's public HTTPS URL ending in `/api/v1`.
+- **Backend (Render):** the checked-in [`render.yaml`](./render.yaml) defines
+  the backend root directory, dependency installation, Alembic release step,
+  Uvicorn start command, and `/api/v1/health` check. Set its `DATABASE_URL`
+  to a provisioned, reachable MySQL database using a URL-encoded password;
+  Render does not create that MySQL database for this service. Also configure
+  `CORS_ORIGINS` with the exact public frontend HTTPS origin,
+  `AUTH_SECRET_KEY` with a newly generated value of at least 32 bytes,
+  `APP_ENV=production`, `APP_BASE_URL` with the public frontend URL,
+  `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` as Render-managed environment
+  variables. The pre-deploy command runs
+  `python -m alembic upgrade head` before the service receives traffic.
+  Verify the public `/api/v1/health` endpoint returns HTTP 200 before testing
+  registration.
 - **MySQL:** use a managed MySQL service with TLS/network restrictions and
   least-privilege database credentials. Store its connection string only in
   the backend host's secret environment configuration. Allow the backend host
@@ -369,6 +376,6 @@ Argon2-hashed; reset links expire after 30 minutes and can only be used once.
 Production session cookies are marked Secure and HttpOnly.
 
 The public website includes a draft privacy policy at `/privacy-policy`.
-Confirm its organisation-specific markers before publication. The footer and
-floating actions use optional `VITE_*_URL` values documented above; unconfigured
-social destinations are displayed as placeholders rather than working links.
+Confirm its organisation-specific markers before publication. The footer and floating actions use the optional `VITE_*_URL` values documented
+above; footer icons open the corresponding platform homepage when a profile URL
+has not been configured.

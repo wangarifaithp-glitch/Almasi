@@ -221,8 +221,8 @@ export default function SupervisorCurriculum() {
                   <ul>{module.facilitator_guide.practical_activities.map((item) => <li key={item}>{item}</li>)}</ul>
                   <h6>Session structure</h6>
                   <ol>
-                    {module.facilitator_guide.session_structure.map((segment) => (
-                      <li key={`${segment.minutes}-${segment.segment}`}>
+                    {module.facilitator_guide.session_structure.map((segment, index) => (
+                      <li key={`${module.id}-${index}-${segment.minutes}-${segment.segment}`}>
                         <strong>{segment.minutes} min · {segment.segment}.</strong>{" "}
                         {segment.facilitator_notes}
                       </li>

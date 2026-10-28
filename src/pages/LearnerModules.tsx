@@ -85,6 +85,7 @@ export default function LearnerModules() {
   const [answerState, setAnswerState] = useState<SaveState>("idle");
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "error" | "done">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [learnerName, setLearnerName] = useState("Learner");
 
   const completedModules = modules.filter((item) => item.is_completed).length;
   const progressPercent = modules.length
@@ -94,6 +95,21 @@ export default function LearnerModules() {
     (total, item) => total + (item.id === module?.id ? module.quiz_attempts.length : 0),
     0,
   );
+
+  useEffect(() => {
+    let active = true;
+    apiFetch("auth/me")
+      .then((response) => response.json() as Promise<{ name?: string }>)
+      .then((user) => {
+        if (active && user.name?.trim()) setLearnerName(user.name.trim());
+      })
+      .catch(() => {
+        // ProtectedRoute has already verified the session; the dashboard remains usable if this display-only request fails.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -271,21 +287,41 @@ export default function LearnerModules() {
     <>
       <section className="workspace-intro">
         <span className="eyebrow">Your ALMASI journey</span>
-        <h2>Your learning space</h2>
+        <h2>Welcome back, {learnerName}.</h2>
         <p>
-          Work through approved modules, keep your notes and reflections private,
-          and submit your answers when you are ready.
+          Continue your approved lessons, keep your reflections private, and
+          complete each activity at your own pace.
         </p>
       </section>
 
       <section className="dashboard-hero dashboard-hero--learner">
         <div>
           <span className="dashboard-hero__eyebrow">LEARNER DASHBOARD</span>
-          <h3>Keep growing, one faithful step at a time.</h3>
+          <h3>{modules.find((item) => !item.is_completed)?.title ?? "Your learning journey is complete."}</h3>
           <p>
-            Your lessons, reflections, and quiz results are saved to your private
-            learning record.
+            {modules.find((item) => !item.is_completed)
+              ? "Pick up where you left off. Your lessons, reflections, and quiz results are saved to your private learning record."
+              : "You have completed every published module. Take a moment to celebrate your progress."}
           </p>
+          {modules.length > 0 && (
+            <button
+              className="button button--primary dashboard-hero__action"
+              onClick={() => {
+                const nextModule = modules.find((item) => !item.is_completed) ?? modules[0];
+                setSelectedId(nextModule.id);
+                window.setTimeout(() => {
+                  document.getElementById("module-workspace")?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                }, 0);
+              }}
+              type="button"
+            >
+              {completedModules ? "Continue learning" : "Start learning"}
+              <span aria-hidden="true">→</span>
+            </button>
+          )}
         </div>
         <div className="dashboard-progress" aria-label={`${progressPercent}% module progress`}>
           <div
@@ -398,7 +434,7 @@ export default function LearnerModules() {
             </section>
           )}
           {module && detailState === "ready" && (
-            <article className="workspace-card learner-module-content">
+            <article className="workspace-card learner-module-content" id="module-workspace">
               <span className="workspace-kicker">WEEK {module.week_number}</span>
               <h3>{module.title}</h3>
               <div className="learner-module-image">
@@ -416,7 +452,16 @@ export default function LearnerModules() {
                 <span aria-hidden="true">ALMASI learning illustration</span>
               </div>
 
-              <section className="learner-module-section">
+              <nav className="learner-module-nav" aria-label="Module sections">
+                <a href="#module-objectives">Objectives</a>
+                <a href="#module-content">Lesson</a>
+                <a href="#module-quiz-title">Quiz</a>
+                <a href="#module-activities">Activities</a>
+                <a href="#module-reflection">Reflection</a>
+                <a href="#module-submit">Submit</a>
+              </nav>
+
+              <section className="learner-module-section" id="module-objectives">
                 <h4>Learning objectives</h4>
                 <ul>
                   {module.learning_objectives.map((objective) => (
@@ -425,7 +470,7 @@ export default function LearnerModules() {
                 </ul>
               </section>
 
-              <section className="learner-module-section">
+              <section className="learner-module-section" id="module-content">
                 <h4>Module content</h4>
                 <div className="learner-module-prose">{module.content_markdown}</div>
               </section>
@@ -493,7 +538,7 @@ export default function LearnerModules() {
                 ))}
               </section>
 
-              <section className="learner-module-section">
+              <section className="learner-module-section" id="module-activities">
                 <h4>Case studies and assignments</h4>
                 <p>
                   These are fictional situations. Answer about the examples, not
@@ -575,7 +620,7 @@ export default function LearnerModules() {
                 {noteState === "error" && <span className="learner-save-status" role="alert">Notes were not saved. Please retry.</span>}
               </section>
 
-              <section className="learner-module-section">
+              <section className="learner-module-section" id="module-reflection">
                 <label htmlFor="learner-module-reflection">Private reflection</label>
                 <ul className="learner-reflection-prompts">
                   {module.reflection_prompts.map((prompt) => (
@@ -605,7 +650,7 @@ export default function LearnerModules() {
                 {reflectionState === "error" && <span className="learner-save-status" role="alert">Reflection was not saved. Please retry.</span>}
               </section>
 
-              <section className="learner-module-section">
+              <section className="learner-module-section" id="module-submit">
                 <h4>Submit your completed module</h4>
                 <p>Save an answer for every case study and assignment before submitting.</p>
                 {module.is_completed ? (

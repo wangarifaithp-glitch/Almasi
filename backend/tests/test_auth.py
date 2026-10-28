@@ -215,6 +215,18 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(login.json()["role"], "learner")
         self.assertNotIn("password_hash", login.json())
 
+    def test_login_rejects_an_incorrect_password(self) -> None:
+        self.register()
+        response = self.client.post(
+            "/api/v1/auth/login",
+            headers=TEST_ORIGIN,
+            json={"email": "learner@example.com", "password": "WrongPass9!"},
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["detail"], "Email or password is incorrect.")
+        self.assertNotIn("set-cookie", response.headers)
+
     def test_unknown_and_known_email_reset_responses_are_indistinguishable(self) -> None:
         self.register()
         unknown = self.client.post(

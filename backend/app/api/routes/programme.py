@@ -270,9 +270,18 @@ def save_learner_submission(
             AssignmentSubmission.learner_id == user.id,
         )
     )
-    if submission is not None and submission.status == "locked":
-        raise HTTPException(status_code=409, detail="This submission is locked.")
-    is_resubmission = submission is not None and submission.submitted_at is not None
+    if submission is not None and submission.status in ("locked", "submitted", "approved"):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This submission is awaiting review."
+                if submission.status == "submitted"
+                else "This submission has been approved and cannot be changed."
+                if submission.status == "approved"
+                else "This submission is locked."
+            ),
+        )
+    is_resubmission = submission is not None and submission.status == "returned_for_improvement"
     if submission is None:
         submission = AssignmentSubmission(
             assignment_id=assignment.id,
@@ -287,8 +296,8 @@ def save_learner_submission(
         db.flush()
     else:
         submission.content = data.content
-        submission.status = "submitted" if submit or is_resubmission else "draft"
-        if submit or is_resubmission:
+        submission.status = "submitted" if submit else "draft"
+        if submit:
             submission.submitted_at = now
         submission.updated_at = now
     db.add(
@@ -406,7 +415,7 @@ def facilitator_dashboard(
         .join(User, User.id == AssignmentSubmission.learner_id)
         .where(
             ProgrammeAssignment.group_id.in_(group_ids),
-            AssignmentSubmission.status.in_(("submitted", "reviewed", "locked")),
+            AssignmentSubmission.status.in_(("submitted", "approved", "returned_for_improvement", "locked")),
         )
         .order_by(AssignmentSubmission.submitted_at.desc())
     ).all()
@@ -659,7 +668,7 @@ def review_submission(
     if assignment is None:
         raise HTTPException(status_code=404, detail="Submission not found.")
     _require_assigned_group(db, user, assignment.group_id)
-    if submission.status == "draft":
+    if submission.status != "submitted":
         raise HTTPException(status_code=409, detail="Draft submissions cannot be reviewed.")
     now = utc_naive_now()
     feedback = db.scalar(
@@ -684,7 +693,7 @@ def review_submission(
         feedback.updated_at = now
     previous_status = submission.status
     if submission.status != "locked":
-        submission.status = "reviewed"
+        submission.status = data.decision
     submission.reviewed_by_id = user.id
     submission.reviewed_at = now
     submission.updated_at = now
@@ -696,7 +705,11 @@ def review_submission(
         submission.id,
         affected_user_id=submission.learner_id,
         group_id=assignment.group_id,
-        details={"previous_status": previous_status, "status": submission.status},
+        details={
+            "previous_status": previous_status,
+            "status": submission.status,
+            "decision": data.decision,
+        },
     )
     db.commit()
     return {
@@ -947,7 +960,7 @@ def supervisor_programme_report(
     ) or 0
     submitted_assignments = db.scalar(
         select(func.count(AssignmentSubmission.id)).where(
-            AssignmentSubmission.status.in_(("submitted", "reviewed", "locked"))
+            AssignmentSubmission.status.in_(("submitted", "approved", "returned_for_improvement", "locked"))
         )
     ) or 0
     awaiting_review = db.scalar(

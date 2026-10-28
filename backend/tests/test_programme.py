@@ -335,12 +335,49 @@ class ProgrammeAccessTests(unittest.TestCase):
             json={"comments": "Second feedback", "score": 90},
         )
         self.assertEqual(feedback.status_code, 200)
-        self.assertEqual(feedback.json()["status"], "reviewed")
+        self.assertEqual(feedback.json()["status"], "approved")
         actions = set(self.db.scalars(select(AuditLog.action)).all())
         self.assertIn("attendance_corrected", actions)
         self.assertIn("submission_feedback_saved", actions)
 
+    def test_facilitator_can_return_submission_and_learner_can_resubmit(self) -> None:
+        self._login("facilitator@example.com")
+        returned = self.client.put(
+            f"/api/v1/facilitator/submissions/{self.submission.id}/feedback",
+            headers=ORIGIN,
+            json={
+                "comments": "Please add one more practical example.",
+                "decision": "returned_for_improvement",
+            },
+        )
+        self.assertEqual(returned.status_code, 200)
+        self.assertEqual(returned.json()["status"], "returned_for_improvement")
+
+        self._login("learner@example.com")
+        resubmitted = self.client.put(
+            f"/api/v1/learner/assignments/{self.assignment.id}/submission?submit=true",
+            headers=ORIGIN,
+            json={"content": "Improved fictional-case answer."},
+        )
+        self.assertEqual(resubmitted.status_code, 200)
+        self.assertEqual(resubmitted.json()["submission_status"], "submitted")
+
+        self._login("supervisor@example.com")
+        report = self.client.get("/api/v1/supervisor/reports")
+        self.assertEqual(report.status_code, 200)
+
     def test_learner_submission_revision_and_lock_enforcement(self) -> None:
+        self._login("facilitator@example.com")
+        returned = self.client.put(
+            f"/api/v1/facilitator/submissions/{self.submission.id}/feedback",
+            headers=ORIGIN,
+            json={
+                "comments": "Please revise this response.",
+                "decision": "returned_for_improvement",
+            },
+        )
+        self.assertEqual(returned.status_code, 200)
+
         self._login("learner@example.com")
         saved = self.client.put(
             f"/api/v1/learner/assignments/{self.assignment.id}/submission?submit=true",

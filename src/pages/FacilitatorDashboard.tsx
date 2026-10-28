@@ -45,7 +45,7 @@ type Submission = {
   learner_id: number;
   learner_name: string;
   content: string;
-  status: "submitted" | "reviewed" | "locked";
+  status: "submitted" | "approved" | "returned_for_improvement" | "locked";
   submitted_at: string | null;
   feedback: string | null;
   score: number | null;
@@ -106,6 +106,9 @@ export default function FacilitatorDashboard() {
   const [assignmentDue, setAssignmentDue] = useState("");
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<number, string>>({});
   const [scoreDrafts, setScoreDrafts] = useState<Record<number, string>>({});
+  const [decisionDrafts, setDecisionDrafts] = useState<
+    Record<number, "approved" | "returned_for_improvement">
+  >({});
   const [reportDrafts, setReportDrafts] = useState<
     Record<number, { content: string; follow_up_actions: string }>
   >({});
@@ -242,7 +245,10 @@ export default function FacilitatorDashboard() {
     }
   }
 
-  async function saveFeedback(submissionId: number) {
+  async function saveFeedback(
+    submissionId: number,
+    decision: "approved" | "returned_for_improvement",
+  ) {
     setBusy(true);
     setError("");
     try {
@@ -253,9 +259,14 @@ export default function FacilitatorDashboard() {
         body: JSON.stringify({
           comments: feedbackDrafts[submissionId] ?? "",
           score: rawScore ? Number(rawScore) : null,
+          decision,
         }),
       });
-      await refresh("Feedback was saved and the submission was marked reviewed.");
+      await refresh(
+        decision === "approved"
+          ? "Feedback saved and submission approved."
+          : "Feedback saved and submission returned for improvement.",
+      );
     } catch (requestError) {
       setError(messageFor(requestError));
     } finally {
@@ -513,8 +524,36 @@ export default function FacilitatorDashboard() {
                   />
                 </label>
                 <div className="workspace-header__actions">
-                  <button className="button button--primary" disabled={busy} onClick={() => void saveFeedback(submission.id)} type="button">
-                    Save feedback
+                  <select
+                    aria-label={`Review decision for ${submission.learner_name}`}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setDecisionDrafts((current) => ({
+                        ...current,
+                        [submission.id]: event.target.value as
+                          | "approved"
+                          | "returned_for_improvement",
+                      }))
+                    }
+                    value={decisionDrafts[submission.id] ?? "approved"}
+                  >
+                    <option value="approved">Approve work</option>
+                    <option value="returned_for_improvement">
+                      Return for improvement
+                    </option>
+                  </select>
+                  <button
+                    className="button button--primary"
+                    disabled={busy || submission.status !== "submitted"}
+                    onClick={() =>
+                      void saveFeedback(
+                        submission.id,
+                        decisionDrafts[submission.id] ?? "approved",
+                      )
+                    }
+                    type="button"
+                  >
+                    Save review decision
                   </button>
                   {submission.status !== "locked" && (
                     <button className="button button--secondary" disabled={busy} onClick={() => void lockSubmission(submission.id)} type="button">

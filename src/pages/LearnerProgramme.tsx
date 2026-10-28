@@ -12,7 +12,13 @@ type LearnerAssignment = {
   due_at: string | null;
   status: "open" | "locked" | "archived";
   submission_id: number | null;
-  submission_status: "draft" | "submitted" | "reviewed" | "locked" | null;
+  submission_status:
+    | "draft"
+    | "submitted"
+    | "approved"
+    | "returned_for_improvement"
+    | "locked"
+    | null;
   submission_content: string | null;
   submitted_at: string | null;
   feedback: string | null;
@@ -37,6 +43,17 @@ function getErrorMessage(error: unknown): string {
 function formatDate(value: string | null): string {
   if (!value) return "No deadline";
   return new Date(value).toLocaleString();
+}
+
+function formatSubmissionStatus(
+  status: LearnerAssignment["submission_status"],
+): string {
+  if (status === "returned_for_improvement") return "Return for improvement";
+  if (status === "approved") return "Approved";
+  if (status === "submitted") return "Submitted — awaiting review";
+  if (status === "locked") return "Locked";
+  if (status === "draft") return "Draft";
+  return "Not started";
 }
 
 export default function LearnerProgramme() {
@@ -150,7 +167,10 @@ export default function LearnerProgramme() {
               assignments.map((assignment) => {
                 const locked =
                   assignment.status !== "open" ||
-                  assignment.submission_status === "locked" ||
+                  (assignment.submission_status !== null &&
+                    !["draft", "returned_for_improvement"].includes(
+                      assignment.submission_status,
+                    )) ||
                   (assignment.due_at !== null &&
                     Date.parse(assignment.due_at) < Date.now());
                 return (
@@ -162,7 +182,7 @@ export default function LearnerProgramme() {
                     <p>{assignment.instructions}</p>
                     <p>
                       Due: {formatDate(assignment.due_at)} · Status:{" "}
-                      {assignment.submission_status ?? "not started"}
+                      {formatSubmissionStatus(assignment.submission_status)}
                     </p>
                     {assignment.feedback && (
                       <p className="learner-completion">

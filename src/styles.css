@@ -235,56 +235,76 @@ button:focus-visible {
   gap: 22px;
 }
 
-.header-signin {
+.header-auth-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 7px 5px 17px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
   color: #fff;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
-.button--header-cta {
+.header-auth-button__icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #7c2457;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.header-auth-button:hover {
+  background: #fff;
+  color: #7c2457;
+  transform: translateY(-2px);
+}
+
+.header-auth-button:hover .header-auth-button__icon {
+  background: #f7c4dd;
+  transform: rotate(45deg);
+}
+
+.header-auth-button--signup {
   border-color: #fff;
   background: #fff;
   color: #7c2457;
 }
 
-.button--header-cta:hover {
+.header-auth-button--signup .header-auth-button__icon {
+  background: #7c2457;
+  color: #fff;
+}
+
+.header-auth-button--signup:hover {
   background: #fceaf3;
+}
+
+.header-auth-button--signup:hover .header-auth-button__icon {
+  background: #542966;
+  color: #fff;
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   color: var(--berry);
 }
 
-.brand__mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid #e98abb;
-  border-radius: 50%;
-  color: var(--rose-dark);
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.brand__name {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-}
-
-.site-header .brand,
-.site-footer .brand--light {
-  color: #fff;
-}
-
-.site-header .brand__mark {
-  border-color: rgba(255, 255, 255, 0.76);
-  color: #fff;
+.brand__logo {
+  display: block;
+  width: 76px;
+  height: 58px;
+  object-fit: contain;
 }
 
 .landing-page .site-nav a:hover,
@@ -753,16 +773,6 @@ button:focus-visible {
   color: #542966;
 }
 
-.brand--light .brand__mark {
-  border-color: rgba(255, 255, 255, 0.45);
-  color: #f4c6d8;
-}
-
-.site-footer .brand--light .brand__mark {
-  border-color: rgba(84, 41, 102, 0.42);
-  color: #8c35a6;
-}
-
 .site-footer p,
 .site-footer__note {
   margin: 0;
@@ -818,25 +828,44 @@ button:focus-visible {
 .site-footer__social ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .site-footer__social li {
-  font-size: 11px;
+  display: flex;
+}
+
+.site-footer__social a,
+.social-placeholder {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  text-decoration: none;
+}
+
+.site-footer__social a img,
+.social-placeholder img {
+  display: block;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  transition: transform 160ms ease;
+}
+
+.site-footer__social a:hover img {
+  transform: scale(1.1);
 }
 
 .social-placeholder {
-  color: #684a73;
-}
-
-.social-placeholder small {
-  display: block;
-  margin-top: 2px;
-  color: #795982;
-  font-size: 9px;
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .site-footer__bottom {
@@ -976,6 +1005,18 @@ button:focus-visible {
   color: #806f7c;
   font-size: 12px;
   line-height: 1.7;
+}
+
+.dashboard-hero__action {
+  margin-top: 18px;
+  border-color: #542966;
+  background: #542966;
+  color: #fff;
+}
+
+.dashboard-hero__action:hover {
+  border-color: #361447;
+  background: #361447;
 }
 
 .dashboard-hero__illustration {
@@ -1268,8 +1309,16 @@ button:focus-visible {
     font-size: 11px;
   }
 
-  .site-header .button {
-    padding-inline: 13px;
+  .header-auth-button {
+    min-height: 38px;
+    padding-left: 13px;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .header-auth-button__icon {
+    width: 27px;
+    height: 27px;
   }
 
   .hero__grid {
@@ -1374,24 +1423,22 @@ button:focus-visible {
     gap: 10px;
   }
 
-  .site-header__actions .button {
-    min-height: 35px;
-    padding-inline: 10px;
+  .header-auth-button {
+    min-height: 34px;
+    padding-left: 10px;
+    gap: 5px;
     font-size: 10px;
   }
 
-  .header-signin {
-    font-size: 11px;
+  .header-auth-button__icon {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
   }
 
-  .site-header .brand__mark {
-    width: 30px;
-    height: 30px;
-    font-size: 17px;
-  }
-
-  .site-header .brand__name {
-    font-size: 11px;
+  .site-header .brand__logo {
+    width: 62px;
+    height: 48px;
   }
 
   .hero__grid {
@@ -1574,11 +1621,6 @@ button:focus-visible {
 }
 
 .auth-story .brand {
-  color: #fff;
-}
-
-.auth-story .brand__mark {
-  border-color: rgba(255, 255, 255, 0.76);
   color: #fff;
 }
 
@@ -2141,10 +2183,36 @@ button:focus-visible {
   display: grid;
 }
 
+.learner-module-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 30px;
+  padding: 10px;
+  border: 1px solid rgba(84, 41, 102, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 250, 248, 0.72);
+}
+
+.learner-module-nav a {
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #542966;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.learner-module-nav a:hover,
+.learner-module-nav a:focus-visible {
+  background: #f7d9e8;
+  color: #361447;
+}
+
 .learner-module-section {
   margin-top: 26px;
   padding-top: 20px;
   border-top: 1px solid #f2e8ee;
+  scroll-margin-top: 24px;
 }
 
 .learner-module-section h4,

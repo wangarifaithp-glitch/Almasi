@@ -11,10 +11,7 @@ export default function Brand({ light = false }: BrandProps) {
       to="/"
       aria-label="ALMASI home"
     >
-      <span className="brand__mark" aria-hidden="true">
-        A
-      </span>
-      <span className="brand__name">ALMASI</span>
+      <img className="brand__logo" src="/almasi-logo.png" alt="ALMASI" />
     </Link>
   );
 }

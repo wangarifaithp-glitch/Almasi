@@ -3,10 +3,34 @@ import Brand from "./Brand";
 import { getHttpsUrl } from "../lib/publicDestinations";
 
 const socialLinks = [
-  { label: "Instagram", url: getHttpsUrl(import.meta.env.VITE_INSTAGRAM_URL) },
-  { label: "Facebook", url: getHttpsUrl(import.meta.env.VITE_FACEBOOK_URL) },
-  { label: "TikTok", url: getHttpsUrl(import.meta.env.VITE_TIKTOK_URL) },
-  { label: "YouTube", url: getHttpsUrl(import.meta.env.VITE_YOUTUBE_URL) },
+  {
+    label: "Instagram",
+    icon: "/social/instagram.svg",
+    url:
+      getHttpsUrl(import.meta.env.VITE_INSTAGRAM_URL) ??
+      "https://www.instagram.com/",
+  },
+  {
+    label: "Facebook",
+    icon: "/social/facebook.svg",
+    url:
+      getHttpsUrl(import.meta.env.VITE_FACEBOOK_URL) ??
+      "https://www.facebook.com/",
+  },
+  {
+    label: "TikTok",
+    icon: "/social/tiktok.svg",
+    url:
+      getHttpsUrl(import.meta.env.VITE_TIKTOK_URL) ??
+      "https://www.tiktok.com/",
+  },
+  {
+    label: "YouTube",
+    icon: "/social/youtube.svg",
+    url:
+      getHttpsUrl(import.meta.env.VITE_YOUTUBE_URL) ??
+      "https://www.youtube.com/",
+  },
 ];
 
 export default function SiteFooter() {
@@ -28,15 +52,24 @@ export default function SiteFooter() {
         <div className="site-footer__social">
           <h2>Follow ALMASI</h2>
           <ul>
-            {socialLinks.map(({ label, url }) => (
+            {socialLinks.map(({ label, icon, url }) => (
               <li key={label}>
                 {url?.trim() ? (
-                  <a href={url.trim()} target="_blank" rel="noreferrer">
-                    {label}
+                  <a
+                    href={url.trim()}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Follow ALMASI on ${label}`}
+                  >
+                    <img src={icon} alt="" aria-hidden="true" />
                   </a>
                 ) : (
-                  <span className="social-placeholder">
-                    {label} <small>URL not set</small>
+                  <span
+                    className="social-placeholder"
+                    title={`${label} URL not set`}
+                    aria-label={`${label} URL not set`}
+                  >
+                    <img src={icon} alt="" aria-hidden="true" />
                   </span>
                 )}
               </li>

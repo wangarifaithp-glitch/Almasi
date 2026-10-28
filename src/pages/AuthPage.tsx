@@ -88,12 +88,19 @@ export default function AuthPage() {
         return;
       }
       if (mode === "login") {
-        await apiFetch("auth/login", {
+        const response = await apiFetch("auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
         });
+        const user = (await response.json()) as { role?: string };
         const state = location.state;
+        const rolePath: Record<string, string> = {
+          learner: "/app/learner",
+          facilitator: "/app/facilitator",
+          supervisor: "/app/supervisor",
+          administrator: "/app/administrator",
+        };
         const returnTo =
           typeof state === "object" &&
           state !== null &&
@@ -101,7 +108,7 @@ export default function AuthPage() {
           typeof state.from === "string" &&
           state.from.startsWith("/app/")
             ? state.from
-            : "/app/learner";
+            : rolePath[user.role ?? ""] ?? "/app/learner";
         navigate(returnTo, { replace: true });
         return;
       }
