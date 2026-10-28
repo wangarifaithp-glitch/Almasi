@@ -178,12 +178,12 @@ Backend settings are read from the process environment or `backend/.env`:
 
 Frontend settings use Vite's `VITE_` prefix. `VITE_API_BASE_URL` is the
 non-secret base URL for API calls. Optional public destinations are
-`VITE_CONTACT_URL`, `VITE_DEVELOPER_URL`, `VITE_INSTAGRAM_URL`,
+`VITE_CONTACT_URL`, `VITE_INSTAGRAM_URL`,
 `VITE_FACEBOOK_URL`, `VITE_TIKTOK_URL`, and `VITE_YOUTUBE_URL`. Configure these
 with ALMASI's confirmed social profile URLs; if they are omitted, the footer
 opens the corresponding platform homepage. Without a contact URL, contact actions use
-the public landing-page contact section. Without a developer portfolio URL,
-the Developer page explains that no portfolio has been configured.
+the public landing-page contact section. The Developer links open the public portfolio
+repository at https://github.com/wangarifaithp-glitch/My-Potifolio.
 
 Only public configuration belongs in the frontend; never put database
 credentials, API secrets, or private keys in `VITE_*` variables because they

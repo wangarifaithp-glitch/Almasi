@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import Brand from "./Brand";
 import { getHttpsUrl } from "../lib/publicDestinations";
 
+const developerUrl = "https://github.com/wangarifaithp-glitch/My-Potifolio";
+
 const socialLinks = [
   {
     label: "Instagram",
@@ -46,7 +48,9 @@ export default function SiteFooter() {
           <Link to="/#about-us">About Us</Link>
           <Link to="/#contact">Contact</Link>
           <Link to="/privacy-policy">Privacy Policy</Link>
-          <Link to="/developer">Developer</Link>
+          <a href={developerUrl} target="_blank" rel="noreferrer">
+            Developer
+          </a>
         </nav>
 
         <div className="site-footer__social">

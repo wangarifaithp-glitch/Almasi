@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
-import {
-  getContactDestination,
-  getHttpsUrl,
-} from "../lib/publicDestinations";
+import { getContactDestination } from "../lib/publicDestinations";
 
 const contactUrl = getContactDestination(import.meta.env.VITE_CONTACT_URL);
-const developerUrl =
-  getHttpsUrl(import.meta.env.VITE_DEVELOPER_URL) ?? "/developer";
+const developerUrl = "https://github.com/wangarifaithp-glitch/My-Potifolio";
 
 export default function FloatingActions() {
   const [showBackToTop, setShowBackToTop] = useState(false);

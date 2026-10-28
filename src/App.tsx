@@ -3,7 +3,6 @@ import PublicLayout from "./components/PublicLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
-import DeveloperPage from "./pages/DeveloperPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import WorkspacePage from "./pages/WorkspacePage";
 
@@ -15,7 +14,6 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="/developer" element={<DeveloperPage />} />
       </Route>
       <Route
         path="/app/learner"
