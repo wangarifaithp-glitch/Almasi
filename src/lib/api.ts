@@ -1,7 +1,6 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(
-  /\/+$/,
-  "",
-);
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "https://almasi-1.onrender.com/api/v1"
+).replace(/\/+$/, "");
 
 export class ApiError extends Error {
   constructor(
