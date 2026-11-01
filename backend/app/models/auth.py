@@ -1,3 +1,4 @@
+
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String
@@ -19,13 +20,15 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(512))
-    role: Mapped[str] = mapped_column(String(20), default="learner", server_default="learner")
+    role: Mapped[str] = mapped_column(
+        String(20), default="learner", server_default="learner"
+    )
     is_active: Mapped[bool] = mapped_column(default=True, server_default="1")
-   email_verified_at: Mapped[datetime | None] = mapped_column(
-    DateTime(timezone=True),
-    nullable=True,
-    default=None
-)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+    )
     session_version: Mapped[int] = mapped_column(default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
@@ -54,8 +57,10 @@ class EmailVerificationToken(Base):
     __tablename__ = "email_verification_tokens"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
