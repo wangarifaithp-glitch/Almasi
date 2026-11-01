@@ -21,9 +21,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(512))
     role: Mapped[str] = mapped_column(String(20), default="learner", server_default="learner")
     is_active: Mapped[bool] = mapped_column(default=True, server_default="1")
-    email_verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
-    )
+   email_verified_at: Mapped[datetime | None] = mapped_column(
+    DateTime(timezone=True),
+    nullable=True,
+    default=None
+)
     session_version: Mapped[int] = mapped_column(default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
