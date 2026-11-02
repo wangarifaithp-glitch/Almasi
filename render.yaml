@@ -4,7 +4,7 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/v1/health
     preDeployCommand: python -m alembic upgrade head
     envVars:
@@ -15,13 +15,15 @@ services:
       - key: APP_NAME
         value: ALMASI API
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: almasi-db
+          property: connectionString
       - key: AUTH_SECRET_KEY
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: https://almasi-frontend.onrender.com
       - key: APP_BASE_URL
-        sync: false
+        value: https://almasi-frontend.onrender.com
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_FROM_EMAIL
@@ -37,4 +39,10 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false
+        value: https://almasi-1.onrender.com/api/v1
+
+databases:
+  - name: almasi-db
+    databaseName: almasi
+    user: almasi
+    plan: free

@@ -35,6 +35,19 @@ function getMode(value: string | null): AuthMode {
   return value === "signup" || value === "forgot" || value === "reset" || value === "verify" ? value : "login";
 }
 
+function EyeIcon({ visible }: { visible: boolean }) {
+  return visible ? (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M2.5 12s3.2-5 9.5-5 9.5 5 9.5 5-3.2 5-9.5 5-9.5-5-9.5-5Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  ) : (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="m3 3 18 18M10.6 6.2C11.1 6.1 11.5 6 12 6c6.3 0 9.5 6 9.5 6a17.8 17.8 0 0 1-3.1 3.7M6.3 6.3C3.9 8 2.5 12 2.5 12s3.2 6 9.5 6c1.2 0 2.3-.2 3.2-.6M10 10a2.8 2.8 0 0 0 4 4" />
+    </svg>
+  );
+}
+
 export default function AuthPage() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -47,6 +60,8 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +83,8 @@ export default function AuthPage() {
     setMessage("");
     setPassword("");
     setConfirmPassword("");
+    setIsPasswordVisible(false);
+    setIsConfirmPasswordVisible(false);
     navigate(nextMode === "signup" ? "/signup" : `/auth${nextMode === "login" ? "" : `?mode=${nextMode}`}`);
   }
 
@@ -100,6 +117,8 @@ export default function AuthPage() {
         setMessage("Check your email for a verification link before signing in.");
         setPassword("");
         setConfirmPassword("");
+        setIsPasswordVisible(false);
+        setIsConfirmPasswordVisible(false);
         return;
       }
       if (mode === "login") {
@@ -145,6 +164,8 @@ export default function AuthPage() {
       setMessage("Your password has been updated. You can now sign in with your new password.");
       setPassword("");
       setConfirmPassword("");
+      setIsPasswordVisible(false);
+      setIsConfirmPasswordVisible(false);
       navigate("/auth", { replace: true });
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -263,16 +284,27 @@ export default function AuthPage() {
             {mode !== "forgot" && (
               <label className="auth-field">
                 <span>{mode === "reset" ? "New password" : "Password"}</span>
-                <input
-                  autoComplete={mode === "signup" ? "new-password" : mode === "reset" ? "new-password" : "current-password"}
-                  name="password"
-                  maxLength={128}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder={mode === "reset" ? "Enter your new password" : "Enter your password"}
-                  required
-                  type="password"
-                  value={password}
-                />
+                <span className="auth-password-input">
+                  <input
+                    autoComplete={mode === "signup" ? "new-password" : mode === "reset" ? "new-password" : "current-password"}
+                    name="password"
+                    maxLength={128}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder={mode === "reset" ? "Enter your new password" : "Enter your password"}
+                    required
+                    type={isPasswordVisible ? "text" : "password"}
+                    value={password}
+                  />
+                  <button
+                    aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+                    aria-pressed={isPasswordVisible}
+                    className="auth-password-toggle"
+                    onClick={() => setIsPasswordVisible((visible) => !visible)}
+                    type="button"
+                  >
+                    <EyeIcon visible={isPasswordVisible} />
+                  </button>
+                </span>
               </label>
             )}
 
@@ -296,16 +328,27 @@ export default function AuthPage() {
                 </ul>
                 <label className="auth-field">
                   <span>Confirm password</span>
-                  <input
-                    autoComplete="new-password"
-                    name="confirm-password"
-                    maxLength={128}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="Enter your password again"
-                    required
-                    type="password"
-                    value={confirmPassword}
-                  />
+                  <span className="auth-password-input">
+                    <input
+                      autoComplete="new-password"
+                      name="confirm-password"
+                      maxLength={128}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="Enter your password again"
+                      required
+                      type={isConfirmPasswordVisible ? "text" : "password"}
+                      value={confirmPassword}
+                    />
+                    <button
+                      aria-label={isConfirmPasswordVisible ? "Hide confirmation password" : "Show confirmation password"}
+                      aria-pressed={isConfirmPasswordVisible}
+                      className="auth-password-toggle"
+                      onClick={() => setIsConfirmPasswordVisible((visible) => !visible)}
+                      type="button"
+                    >
+                      <EyeIcon visible={isConfirmPasswordVisible} />
+                    </button>
+                  </span>
                 </label>
               </>
             )}

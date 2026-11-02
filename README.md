@@ -353,10 +353,13 @@ real values are ignored by Git.
   path to the backend). The Vite development proxy is not used in production.
 - **Frontend (Render):** the same [`render.yaml`](./render.yaml) also defines
   a static site using `npm ci && npm run build` and `dist`. Set
-  `VITE_API_BASE_URL` to the backend's public HTTPS URL ending in `/api/v1`.
+  `VITE_API_BASE_URL` to the backend's public HTTPS URL ending in `/api/v1`;
+  the checked-in blueprint sets this to the default `almasi-1` API service.
 - **Backend (Render):** the checked-in [`render.yaml`](./render.yaml) defines
   the backend root directory, dependency installation, Alembic release step,
-  Uvicorn start command, and `/api/v1/health` check. Set its `DATABASE_URL`
+  Uvicorn start command, and `/api/v1/health` check. The start command also
+  applies pending Alembic migrations before starting Uvicorn, which protects
+  against deployments where the release step was skipped. Set its `DATABASE_URL`
   to a provisioned, reachable MySQL database using a URL-encoded password;
   Render does not create that MySQL database for this service. Also configure
   `CORS_ORIGINS` with the exact public frontend HTTPS origin,
